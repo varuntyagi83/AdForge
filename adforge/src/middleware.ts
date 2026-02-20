@@ -36,12 +36,11 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Protected routes
+  // Protected routes - everything except auth routes is protected
   const isAuthRoute = request.nextUrl.pathname.startsWith('/auth')
-  const isProtectedRoute = !isAuthRoute && request.nextUrl.pathname !== '/'
 
   // Redirect to login if user is not authenticated and trying to access protected routes
-  if (!user && isProtectedRoute) {
+  if (!user && !isAuthRoute) {
     return NextResponse.redirect(new URL('/auth/login', request.url))
   }
 
