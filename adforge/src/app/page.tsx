@@ -1,6 +1,5 @@
-import { redirect } from 'next/navigation'
-
+// This page is redirected to /categories via next.config.ts
+// This component exists as a fallback but should not be reached
 export default function Home() {
-  // Redirect to categories page as the default landing page
-  redirect('/categories')
+  return null
 }
