@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { ArrowLeft, Edit } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
+import { ProductList } from '@/components/products/ProductList'
 
 interface CategoryDetailPageProps {
   params: Promise<{ id: string }>
@@ -135,14 +136,7 @@ export default function CategoryDetailPage({ params }: CategoryDetailPageProps) 
         </TabsList>
 
         <TabsContent value="assets" className="space-y-4">
-          <div className="rounded-lg border border-dashed p-12 text-center">
-            <p className="text-muted-foreground">
-              Product assets management will be implemented here
-            </p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Upload product images and manage your product catalog
-            </p>
-          </div>
+          <ProductList categoryId={category.id} />
         </TabsContent>
 
         <TabsContent value="angled-shots">
