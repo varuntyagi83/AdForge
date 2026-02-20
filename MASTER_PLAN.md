@@ -9,7 +9,7 @@
 
 AdForge is an end-to-end AI-powered ad creative generation platform. Users upload product images, generate AI variations (angles, backgrounds), create marketing copy, apply brand guidelines, and export production-ready ads in multiple aspect ratios.
 
-**The entire image pipeline is powered by Nano Banana Pro (Gemini 3 Pro Image — `gemini-3-pro-image-preview`)**. Text/copy generation uses **Claude Sonnet 4.5 via Anthropic API**.
+**The entire image pipeline is powered by Nano Banana Pro (Gemini 3 Pro Image — `gemini-3-pro-image-preview`)**. Text/copy generation uses **GPT-4o via OpenAI API**.
 
 ---
 
@@ -21,7 +21,7 @@ AdForge is an end-to-end AI-powered ad creative generation platform. Users uploa
 | Styling | Tailwind CSS + shadcn/ui |
 | Backend | Supabase (Auth, Database, Storage, Edge Functions) |
 | Image AI | Nano Banana Pro (`gemini-3-pro-image-preview`) via Google Gemini API |
-| Text AI | Claude Sonnet 4.5 via Anthropic API |
+| Text AI | GPT-4o via OpenAI API |
 | State | Zustand for client state |
 | File handling | Sharp.js for local image processing where needed |
 
@@ -88,7 +88,7 @@ Read and execute each phase file in order:
 2. **`PHASE_1_CATEGORIES_ASSETS.md`** — Category CRUD, brand assets, product image upload
 3. **`PHASE_2_ANGLED_SHOTS.md`** — AI angled shot generation with Nano Banana Pro
 4. **`PHASE_3_BACKGROUNDS_COMPOSITES.md`** — AI background generation + product×background compositing
-5. **`PHASE_4_COPY_GENERATION.md`** — AI marketing copy generation with Claude
+5. **`PHASE_4_COPY_GENERATION.md`** — AI marketing copy generation with GPT-4o
 6. **`PHASE_5_GUIDELINES_REFERENCES.md`** — Guideline upload + @ reference system
 7. **`PHASE_6_FINAL_COMPOSITES.md`** — Final composite generation (visual + copy + guidelines)
 8. **`PHASE_7_AD_EXPORT.md`** — Multi-aspect ratio ad export
@@ -117,8 +117,8 @@ SUPABASE_SERVICE_ROLE_KEY=
 # Google Gemini API (for Nano Banana Pro)
 GOOGLE_GEMINI_API_KEY=
 
-# Anthropic API (for Claude copy generation)
-ANTHROPIC_API_KEY=
+# OpenAI API (for GPT copy generation)
+OPENAI_API_KEY=
 ```
 
 ---

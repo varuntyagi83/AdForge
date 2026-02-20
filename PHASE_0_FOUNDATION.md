@@ -8,7 +8,7 @@
 - Node.js 18+ installed
 - Supabase project created (get URL + keys)
 - Google Gemini API key obtained
-- Anthropic API key obtained
+- OpenAI API key obtained
 
 ---
 
@@ -26,7 +26,7 @@ Install dependencies:
 ```bash
 npm install @supabase/supabase-js @supabase/ssr zustand uuid
 npm install @google/genai
-npm install @anthropic-ai/sdk
+npm install openai
 npm install sharp
 npm install lucide-react
 npx shadcn@latest add button card dialog input label select tabs textarea toast badge scroll-area separator sheet dropdown-menu command popover
@@ -38,7 +38,7 @@ NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 GOOGLE_GEMINI_API_KEY=your_gemini_key
-ANTHROPIC_API_KEY=your_anthropic_key
+OPENAI_API_KEY=your_openai_key
 ```
 
 **Validation**: `npm run dev` starts without errors.
@@ -542,24 +542,23 @@ export async function generateImage(prompt: string, referenceImages?: { data: st
 }
 ```
 
-Create `src/lib/ai/anthropic.ts`:
+Create `src/lib/ai/openai.ts`:
 ```typescript
-import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
 
 export async function generateCopy(systemPrompt: string, userPrompt: string) {
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-5-20250514',
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o',
     max_tokens: 4096,
-    system: systemPrompt,
-    messages: [{ role: 'user', content: userPrompt }],
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt }
+    ],
   })
 
-  return response.content
-    .filter(block => block.type === 'text')
-    .map(block => block.text)
-    .join('\n')
+  return response.choices[0]?.message?.content || ''
 }
 ```
 
