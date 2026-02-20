@@ -39,11 +39,30 @@ export function Sidebar() {
   }
 
   const isBrandAssetsActive = pathname === '/brand-assets'
+  const isCategoriesActive = pathname === '/categories'
 
   return (
     <div className="flex h-full w-64 flex-col border-r bg-background">
       <ScrollArea className="flex-1">
         <div className="space-y-4 py-4">
+          {/* Categories Overview */}
+          <div className="px-3 py-2">
+            <Link
+              href="/categories"
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+                isCategoriesActive
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+              )}
+            >
+              <FolderOpen className="h-4 w-4" />
+              <span className="flex-1 font-medium">All Categories</span>
+            </Link>
+          </div>
+
+          <Separator />
+
           {/* Brand Assets Section */}
           <div className="px-3 py-2">
             <Link
