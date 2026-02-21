@@ -12,6 +12,7 @@ import {
   BookOpen,
   Sparkles,
   Download,
+  Package,
 } from 'lucide-react'
 
 interface CategoryNavProps {
@@ -34,6 +35,21 @@ export function CategoryNav({ categoryId }: CategoryNavProps) {
 
   return (
     <div className="space-y-1 px-3 py-2">
+      {/* Products Link */}
+      <Link
+        href={`/categories/${categoryId}`}
+        className={cn(
+          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
+          pathname === `/categories/${categoryId}`
+            ? 'bg-primary text-primary-foreground'
+            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+        )}
+      >
+        <Package className="h-4 w-4" />
+        <span className="flex-1">Products</span>
+        <span className="text-xs opacity-50">#1</span>
+      </Link>
+
       <div className="px-3 py-2">
         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           Pipeline Steps
