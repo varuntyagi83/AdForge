@@ -8,6 +8,7 @@ import { ArrowLeft, Edit } from 'lucide-react'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { ProductList } from '@/components/products/ProductList'
+import { AngledShotsList } from '@/components/angled-shots/AngledShotsList'
 
 interface CategoryDetailPageProps {
   params: Promise<{ id: string }>
@@ -139,13 +140,8 @@ export default function CategoryDetailPage({ params }: CategoryDetailPageProps) 
           <ProductList categoryId={category.id} />
         </TabsContent>
 
-        <TabsContent value="angled-shots">
-          <div className="rounded-lg border border-dashed p-12 text-center">
-            <p className="text-muted-foreground">Coming in Phase 2</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              AI-generated angle variations of your products
-            </p>
-          </div>
+        <TabsContent value="angled-shots" className="space-y-4">
+          <AngledShotsList categoryId={category.id} />
         </TabsContent>
 
         <TabsContent value="backgrounds">
