@@ -79,7 +79,7 @@ export async function generateAngledShots(
     const model = getGenAI().getGenerativeModel({
       model: 'gemini-3-pro-image-preview',
       generationConfig: {
-        temperature: 0.4, // Lower temperature for consistent product representation
+        temperature: 0.55, // Balanced: enough variation for angles, but preserves product details
         topP: 0.95,
         maxOutputTokens: 32768,
         responseModalities: ['TEXT', 'IMAGE'], // Type not yet in SDK, but supported by API
@@ -98,18 +98,22 @@ export async function generateAngledShots(
       // Create prompt for this specific angle
       const prompt = `Create a variation of this product image showing: ${angle.description}.
 
-Angle instruction: ${angle.prompt}
+ANGLE INSTRUCTION: ${angle.prompt}
 
-${lookAndFeel ? `Style: ${lookAndFeel}\n` : ''}
-CRITICAL REQUIREMENTS:
-- Preserve ALL text on the product exactly as shown
-- Maintain the same product colors, materials, and design
-- Keep the same background style
-- Only change the viewing angle to show: ${angle.description}
-- High quality, professional product photography
-- Do not add or remove any elements
+${lookAndFeel ? `STYLE: ${lookAndFeel}\n\n` : ''}CRITICAL - DO NOT MODIFY THESE:
+✓ Keep ALL text EXACTLY as shown - do not change, rearrange, or create new text
+✓ Preserve the exact product design, colors, and materials
+✓ Maintain the same jar shape, lid, and label appearance
+✓ Keep the same background color and lighting style
+✓ Keep all props (gummy bears, lemon slice) in similar positions
 
-Return a high-quality image with the product rotated to the specified angle while preserving all details.`
+ONLY CHANGE THIS:
+✗ Rotate the camera angle/viewpoint to: ${angle.description}
+✗ Adjust the camera position as described in the angle instruction
+
+Think of this as moving a camera around a stationary product on a turntable. The product stays the same, only your viewing angle changes.
+
+Return a high-quality professional product photograph from the new angle.`
 
       try {
         const result = await model.generateContent([
