@@ -107,6 +107,34 @@ curl -X POST https://your-app.vercel.app/api/categories/{categoryId}/angled-shot
 
 ---
 
+### 4. 🗑️ **Google Drive Trash Cleanup** (Automated)
+
+**Problem:** Files moved to Google Drive trash still have metadata in Supabase → UI shows "broken" images
+
+**Solution:** **Cleanup Orphaned Metadata** endpoint + scripts
+
+**How it works:**
+
+1. **Script checks each record** against Google Drive API
+   ```typescript
+   // Check if file exists and is not trashed
+   const response = await drive.files.get({
+     fileId,
+     fields: 'id, trashed'
+   })
+
+   if (response.data.trashed) {
+     // Mark as orphaned
+   }
+   ```
+
+2. **Deletes orphaned metadata** from Supabase
+3. **Keeps database in sync** with Google Drive state
+
+**Status:** 🗑️ **Run cleanup script** - removes metadata for trashed/deleted files
+
+---
+
 ## API Endpoints
 
 ### 1. Delete Angled Shot (UI)
@@ -196,6 +224,70 @@ Authorization: Bearer {CRON_SECRET}
     "failed": 2
   }
 }
+```
+
+---
+
+### 4. Cleanup Orphaned Metadata (Admin)
+
+```
+POST /api/admin/cleanup-orphaned-metadata
+Authorization: Bearer {CRON_SECRET}
+```
+
+**Purpose:** Remove Supabase metadata for files that are trashed or permanently deleted in Google Drive.
+
+**Request:**
+```json
+{
+  "dryRun": true  // false to actually delete
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Cleanup complete - 28 records deleted",
+  "dryRun": false,
+  "stats": {
+    "total": 42,
+    "valid": 14,
+    "orphaned": 28,
+    "deleted": 28
+  },
+  "orphanedRecords": [
+    {
+      "id": "uuid",
+      "angle_name": "front",
+      "gdrive_file_id": "1ABC..."
+    }
+  ]
+}
+```
+
+**When to use:**
+- After moving files to Google Drive trash
+- Periodic cleanup (weekly/monthly)
+- When database shows more records than exist in Drive
+
+**Scripts:**
+
+**Local cleanup** (direct database access):
+```bash
+# Dry run (see what would be deleted)
+npx tsx scripts/cleanup-orphaned-local.ts
+
+# Execute cleanup
+npx tsx scripts/cleanup-orphaned-local.ts --execute
+```
+
+**API cleanup** (via Vercel endpoint):
+```bash
+# Dry run
+npx tsx scripts/cleanup-orphaned-metadata.ts
+
+# Execute cleanup
+npx tsx scripts/cleanup-orphaned-metadata.ts --execute
 ```
 
 ---
@@ -318,6 +410,21 @@ Vercel will automatically set up the cron job.
    ```
 4. ✅ Verify file deleted from Google Drive
 
+### Test 4: Google Drive Trash Cleanup
+
+1. Move a file to trash in Google Drive
+2. Run cleanup in dry-run mode:
+   ```bash
+   npx tsx scripts/cleanup-orphaned-local.ts
+   ```
+3. ✅ Verify it identifies the trashed file
+4. Run cleanup to delete metadata:
+   ```bash
+   npx tsx scripts/cleanup-orphaned-local.ts --execute
+   ```
+5. ✅ Verify orphaned Supabase record deleted
+6. ✅ Verify UI no longer shows the image
+
 ---
 
 ## Monitoring
@@ -351,10 +458,15 @@ WHERE status = 'failed';
 ## Best Practices
 
 1. **Always use UI deletion** - most reliable, immediate sync
-2. **Run reconciliation monthly** - cleanup any missed orphans
-3. **Monitor deletion queue** - check for failed deletions
-4. **Don't manually delete from Google Drive** - unless necessary
-5. **Use `dryRun: true` first** - before running reconciliation
+2. **Run cleanup script weekly** - remove metadata for trashed Google Drive files
+   ```bash
+   npx tsx scripts/cleanup-orphaned-local.ts --execute
+   ```
+3. **Run reconciliation monthly** - cleanup any missed orphans
+4. **Monitor deletion queue** - check for failed deletions
+5. **Don't manually delete from Google Drive** - unless necessary, then run cleanup
+6. **Use `dryRun: true` first** - before running any cleanup/reconciliation
+7. **Check cleanup stats** - verify orphaned count makes sense before executing
 
 ---
 
@@ -400,10 +512,14 @@ curl -X POST .../process-deletion-queue \
 
 ## Summary
 
-| Deletion Method | Google Drive | Supabase DB | Status |
-|----------------|--------------|-------------|--------|
-| **UI Delete** | ✅ Immediate | ✅ Immediate | Fully synced |
-| **Manual Drive Delete** | ✅ Manual | ⚠️ Run reconciliation | Manual sync |
-| **Manual DB Delete** | 🔄 Queued (5 min) | ✅ Immediate | Auto-synced |
+| Deletion Method | Google Drive | Supabase DB | How to Sync |
+|----------------|--------------|-------------|-------------|
+| **UI Delete** | ✅ Immediate | ✅ Immediate | Auto - Fully synced |
+| **Manual Drive Delete** | ✅ Manual | ⚠️ Orphaned | Run reconciliation API |
+| **Drive Trash** | 🗑️ Trashed | ⚠️ Orphaned | Run cleanup script |
+| **Manual DB Delete** | 🔄 Queued | ✅ Immediate | Auto - Cron (5 min) |
 
-**Key Takeaway:** Always prefer UI deletion for immediate, reliable sync! 🎯
+**Key Takeaways:**
+- ✅ **Best:** Always use UI deletion for immediate, reliable sync
+- 🗑️ **Cleanup:** Run `cleanup-orphaned-local.ts` weekly to remove metadata for trashed files
+- 🔄 **Automated:** Deletion queue handles manual DB deletions automatically
