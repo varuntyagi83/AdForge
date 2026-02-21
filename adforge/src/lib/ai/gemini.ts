@@ -1,7 +1,37 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
+import { VertexAI } from '@google-cloud/vertexai'
 
-// Initialize Gemini AI with API key
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '')
+// Lazy initialization of Gemini AI client
+let genAI: GoogleGenerativeAI | null = null
+let vertexAI: VertexAI | null = null
+
+function getGenAI(): GoogleGenerativeAI {
+  if (!genAI) {
+    const apiKey = process.env.GOOGLE_GEMINI_API_KEY || ''
+    if (!apiKey) {
+      throw new Error('GOOGLE_GEMINI_API_KEY environment variable is not set')
+    }
+    genAI = new GoogleGenerativeAI(apiKey)
+  }
+  return genAI
+}
+
+function getVertexAI(): VertexAI {
+  if (!vertexAI) {
+    const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID || ''
+    const location = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1'
+
+    if (!projectId) {
+      throw new Error('GOOGLE_CLOUD_PROJECT_ID environment variable is not set')
+    }
+
+    vertexAI = new VertexAI({
+      project: projectId,
+      location: location,
+    })
+  }
+  return vertexAI
+}
 
 // Predefined angle variations for product photography
 export const ANGLE_VARIATIONS = [
@@ -50,7 +80,7 @@ export async function analyzeProductImage(
   mimeType: string = 'image/jpeg'
 ): Promise<string> {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-3-pro-image-preview' })
+    const model = getGenAI().getGenerativeModel({ model: 'gemini-3-pro-image-preview' })
 
     // Convert base64 to proper format if needed
     const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '')
@@ -108,10 +138,7 @@ Requirements:
 }
 
 /**
- * Generates angled shot variations using Gemini image generation
- *
- * Note: This uses Gemini's Imagen 3 integration via the Generative AI API.
- * For production, you may need to use Vertex AI's Imagen API directly.
+ * Generates angled shot variations using Vertex AI Imagen 3
  */
 export async function generateAngledShots(
   productImageData: string,
@@ -135,7 +162,16 @@ export async function generateAngledShots(
       productImageMimeType
     )
 
-    // Step 2: Generate each angle variation
+    // Step 2: Initialize Vertex AI Imagen model
+    const vertex = getVertexAI()
+    const generativeModel = vertex.preview.getGenerativeModel({
+      model: 'imagen-3.0-generate-001',
+    })
+
+    // Step 3: Convert base64 image to proper format
+    const base64Data = productImageData.replace(/^data:image\/\w+;base64,/, '')
+
+    // Step 4: Generate each angle variation
     const results = []
 
     for (const angle of angles) {
@@ -148,19 +184,72 @@ export async function generateAngledShots(
         lookAndFeel
       )
 
-      // For now, we'll use Gemini's text generation to create enhanced prompts
-      // In production, you would use Vertex AI's Imagen API for actual image generation
-      // or integrate with another image generation service
+      try {
+        // Generate image using Vertex AI Imagen 3
+        const request = {
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  text: prompt,
+                },
+                {
+                  inlineData: {
+                    mimeType: productImageMimeType,
+                    data: base64Data,
+                  },
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.4, // Lower temperature for more consistent product representation
+            topK: 32,
+            topP: 1,
+            maxOutputTokens: 2048,
+          },
+        }
 
-      // Placeholder: Return the analysis and prompt
-      // In Phase 2 full implementation, this will call Imagen API
-      results.push({
-        angleName: angle.name,
-        angleDescription: angle.description,
-        promptUsed: prompt,
-        imageData: productImageData, // Placeholder - will be replaced with generated image
-        mimeType: productImageMimeType,
-      })
+        const response = await generativeModel.generateContent(request)
+        const generatedImage = response.response.candidates?.[0]?.content?.parts?.[0]
+
+        if (generatedImage && 'inlineData' in generatedImage) {
+          // Successfully generated image
+          const generatedBase64 = generatedImage.inlineData.data
+          const generatedMimeType = generatedImage.inlineData.mimeType || 'image/jpeg'
+
+          results.push({
+            angleName: angle.name,
+            angleDescription: angle.description,
+            promptUsed: prompt,
+            imageData: `data:${generatedMimeType};base64,${generatedBase64}`,
+            mimeType: generatedMimeType,
+          })
+
+          console.log(`   ✅ ${angle.name} generated successfully`)
+        } else {
+          console.warn(`   ⚠️  Failed to generate ${angle.name}, using original image as fallback`)
+          // Fallback to original image if generation fails
+          results.push({
+            angleName: angle.name,
+            angleDescription: angle.description,
+            promptUsed: prompt,
+            imageData: productImageData,
+            mimeType: productImageMimeType,
+          })
+        }
+      } catch (error) {
+        console.error(`   ❌ Error generating ${angle.name}:`, error)
+        // Fallback to original image on error
+        results.push({
+          angleName: angle.name,
+          angleDescription: angle.description,
+          promptUsed: prompt,
+          imageData: productImageData,
+          mimeType: productImageMimeType,
+        })
+      }
     }
 
     return results
