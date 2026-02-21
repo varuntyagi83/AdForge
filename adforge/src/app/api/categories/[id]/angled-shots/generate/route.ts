@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import {
-  generateAngledShots,
-  ANGLE_VARIATIONS,
-} from '@/lib/ai/gemini'
+import { generateAngledShots } from '@/lib/ai/gemini'
+import { ANGLE_VARIATIONS } from '@/lib/ai/angle-variations'
 
 /**
  * POST /api/categories/[id]/angled-shots/generate
