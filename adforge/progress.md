@@ -325,22 +325,37 @@ AdForge is an AI-powered ad creative pipeline that automates the generation of p
 **E2E Test Results (Feb 21, 2026):**
 - ✅ All 9 tests passed
 - ✅ Composites table schema correct (all storage sync fields present)
-- ⚠️  0 angled shots available (need to generate some first)
-- ✅ 1 background available
-- ⚠️  Need both angled shots and backgrounds to generate composites
 - ✅ API endpoints accessible (GET /api/categories/[id]/composites)
 - ✅ All 4 UI components exist and integrated
 - ✅ generateComposite function implemented in gemini.ts
 - ✅ UI successfully integrated into category page
 - 📝 Test script: `scripts/test-composite-generation.ts`
 
-**Next Steps to Use:**
-1. Generate some angled shots first in the "Angled Shots" tab
-2. Ensure backgrounds exist in the "Backgrounds" tab
-3. Navigate to "Composites" tab
-4. Select generation mode and assets
-5. Add optional placement instructions (e.g., "Place product in model's hands")
-6. Generate and save composites
+**Real Generation Success (Feb 21, 2026):**
+- ✅ **7/7 composites generated** for Gummy Bear category using ALL angled shots
+- ✅ All composites saved to Google Drive: `gummy-bear/composites/`
+- ✅ All composites saved to database with proper relationships
+- ✅ Generated using Gemini AI with intelligent placement
+- ✅ Preserved product labels and background elements exactly
+- ✅ Added natural lighting, shadows, and depth
+- 📝 Generation script: `scripts/generate-all-composites.ts`
+- 📝 Verification script: `scripts/verify-composites.ts`
+
+**Composites Generated:**
+1. front-on-colorful-bg
+2. isometric-on-colorful-bg
+3. left-30deg-on-colorful-bg
+4. right-30deg-on-colorful-bg
+5. three-quarter-left-on-colorful-bg
+6. three-quarter-right-on-colorful-bg
+7. top-45deg-on-colorful-bg
+
+**Bug Fix (Feb 21, 2026):**
+- 🐛 Fixed: UI showed "No composites yet" despite 7 composites in database
+- Root cause: API queried non-existent `name` field from angled_shots table
+- Solution: Updated API to use `angle_name` instead of `name`
+- Result: All 7 composites now display correctly in UI gallery
+- Commit: `aa3513e`
 
 ---
 
@@ -478,6 +493,15 @@ AdForge is an AI-powered ad creative pipeline that automates the generation of p
     - Added: Error handlers with fallback placeholders
     - Verified: All 8 files have correct Google Drive permissions (200 OK)
     - Commit: `81d2b83`
+
+13. **Composites Gallery Showing "No composites yet"** (Fixed: Feb 21, 2026)
+    - Problem: UI gallery showed empty state despite 7 composites in database
+    - Root Cause: API tried to select non-existent `name` field from angled_shots table
+    - Database Reality: angled_shots only has `angle_name` and `angle_description` columns
+    - Solution: Updated API route and CompositeGallery to use `angle_name` instead
+    - Fixed Files: `src/app/api/categories/[id]/composites/route.ts`, `CompositeGallery.tsx`
+    - Result: All 7 composites now display correctly in UI
+    - Commit: `aa3513e`
 
 ### Configuration Issues
 1. **Root Page Redirect** (Fixed: Feb 20, 2026)
