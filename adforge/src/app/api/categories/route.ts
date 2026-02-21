@@ -32,7 +32,30 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ categories })
+    // Get counts for each category
+    const categoriesWithCounts = await Promise.all(
+      (categories || []).map(async (category) => {
+        const { count: productsCount } = await supabase
+          .from('products')
+          .select('*', { count: 'exact', head: true })
+          .eq('category_id', category.id)
+
+        const { count: angledShotsCount } = await supabase
+          .from('angled_shots')
+          .select('*', { count: 'exact', head: true })
+          .eq('category_id', category.id)
+
+        return {
+          ...category,
+          counts: {
+            products: productsCount || 0,
+            angled_shots: angledShotsCount || 0,
+          },
+        }
+      })
+    )
+
+    return NextResponse.json({ categories: categoriesWithCounts })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

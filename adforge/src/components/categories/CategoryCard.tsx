@@ -22,6 +22,10 @@ interface CategoryCardProps {
     description: string
     look_and_feel: string | null
     created_at: string
+    counts?: {
+      products: number
+      angled_shots: number
+    }
   }
   onDeleted: () => void
 }
@@ -102,10 +106,10 @@ export function CategoryCard({ category, onDeleted }: CategoryCardProps) {
 
         <div className="flex flex-wrap gap-2 mt-3">
           <Badge variant="secondary" className="text-xs">
-            0 products
+            {category.counts?.products || 0} product{category.counts?.products !== 1 ? 's' : ''}
           </Badge>
           <Badge variant="secondary" className="text-xs">
-            0 assets
+            {category.counts?.angled_shots || 0} angled shot{category.counts?.angled_shots !== 1 ? 's' : ''}
           </Badge>
         </div>
 

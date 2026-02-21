@@ -15,6 +15,10 @@ interface Category {
   description: string
   look_and_feel: string | null
   created_at: string
+  counts?: {
+    products: number
+    angled_shots: number
+  }
 }
 
 export default function CategoriesPage() {
