@@ -19,11 +19,8 @@ dotenv.config({ path: path.join(process.cwd(), '.env.local') })
 
 import { createClient } from '@supabase/supabase-js'
 import { GoogleDriveAdapter } from '../src/lib/storage/gdrive-adapter'
-import {
-  generateAngledShots,
-  analyzeProductImage,
-  ANGLE_VARIATIONS,
-} from '../src/lib/ai/gemini'
+import { generateAngledShots, analyzeProductImage } from '../src/lib/ai/gemini'
+import { ANGLE_VARIATIONS } from '../src/lib/ai/angle-variations'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
