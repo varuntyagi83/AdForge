@@ -11,6 +11,7 @@ import { ProductList } from '@/components/products/ProductList'
 import { AngledShotsList } from '@/components/angled-shots/AngledShotsList'
 import { BackgroundGenerationWorkspace } from '@/components/backgrounds/BackgroundGenerationWorkspace'
 import { CompositeWorkspace } from '@/components/composites/CompositeWorkspace'
+import { CopyWorkspace } from '@/components/copy/CopyWorkspace'
 
 interface CategoryDetailPageProps {
   params: Promise<{ id: string }>
@@ -139,7 +140,14 @@ export default function CategoryDetailPage({ params }: CategoryDetailPageProps) 
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="copy">Copy</TabsTrigger>
+          <TabsTrigger value="copy">
+            Copy
+            {category.counts.copy_docs > 0 && (
+              <span className="ml-2 text-xs bg-primary text-primary-foreground rounded-full px-2 py-0.5">
+                {category.counts.copy_docs}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="guidelines">Guidelines</TabsTrigger>
           <TabsTrigger value="final-assets">Final Assets</TabsTrigger>
           <TabsTrigger value="ad-export">Ad Export</TabsTrigger>
@@ -161,13 +169,8 @@ export default function CategoryDetailPage({ params }: CategoryDetailPageProps) 
           <CompositeWorkspace category={category} />
         </TabsContent>
 
-        <TabsContent value="copy">
-          <div className="rounded-lg border border-dashed p-12 text-center">
-            <p className="text-muted-foreground">Coming in Phase 4</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              AI-generated marketing copy with GPT-4o
-            </p>
-          </div>
+        <TabsContent value="copy" className="space-y-4">
+          <CopyWorkspace category={category} />
         </TabsContent>
 
         <TabsContent value="guidelines">
