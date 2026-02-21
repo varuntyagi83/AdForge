@@ -61,8 +61,12 @@ export function Sidebar() {
     )
     setSelectedCategory(categoryId)
 
-    // When expanding, navigate to the category's products page
-    if (!isCurrentlyExpanded) {
+    // Navigate based on expand/collapse state
+    if (isCurrentlyExpanded) {
+      // When collapsing, go back to all categories view
+      router.push('/categories')
+    } else {
+      // When expanding, navigate to the category's products page
       router.push(`/categories/${categoryId}`)
     }
   }
