@@ -9,6 +9,8 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import { ProductList } from '@/components/products/ProductList'
 import { AngledShotsList } from '@/components/angled-shots/AngledShotsList'
+import { BackgroundGenerationWorkspace } from '@/components/backgrounds/BackgroundGenerationWorkspace'
+import { CompositeWorkspace } from '@/components/composites/CompositeWorkspace'
 
 interface CategoryDetailPageProps {
   params: Promise<{ id: string }>
@@ -129,7 +131,14 @@ export default function CategoryDetailPage({ params }: CategoryDetailPageProps) 
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="composites">Composites</TabsTrigger>
+          <TabsTrigger value="composites">
+            Composites
+            {category.counts.composites > 0 && (
+              <span className="ml-2 text-xs bg-primary text-primary-foreground rounded-full px-2 py-0.5">
+                {category.counts.composites}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="copy">Copy</TabsTrigger>
           <TabsTrigger value="guidelines">Guidelines</TabsTrigger>
           <TabsTrigger value="final-assets">Final Assets</TabsTrigger>
@@ -144,22 +153,12 @@ export default function CategoryDetailPage({ params }: CategoryDetailPageProps) 
           <AngledShotsList categoryId={category.id} />
         </TabsContent>
 
-        <TabsContent value="backgrounds">
-          <div className="rounded-lg border border-dashed p-12 text-center">
-            <p className="text-muted-foreground">Coming in Phase 3</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              AI-generated backgrounds matching your category look & feel
-            </p>
-          </div>
+        <TabsContent value="backgrounds" className="space-y-4">
+          <BackgroundGenerationWorkspace category={category} />
         </TabsContent>
 
-        <TabsContent value="composites">
-          <div className="rounded-lg border border-dashed p-12 text-center">
-            <p className="text-muted-foreground">Coming in Phase 3</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Composite images combining products with backgrounds
-            </p>
-          </div>
+        <TabsContent value="composites" className="space-y-4">
+          <CompositeWorkspace category={category} />
         </TabsContent>
 
         <TabsContent value="copy">

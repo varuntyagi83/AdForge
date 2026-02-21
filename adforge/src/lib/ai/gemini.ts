@@ -309,6 +309,129 @@ Return a professional product photography background.`
 }
 
 /**
+ * Generate composite image by combining product and background
+ * For Phase 3: Product × Background Composites
+ *
+ * This creates a natural-looking composite where:
+ * - Product appearance is preserved (labels, branding, colors)
+ * - Background scene/model is preserved
+ * - Gemini intelligently places product in scene with natural lighting/shadows
+ */
+export async function generateComposite(
+  productImageData: string,
+  productImageMimeType: string,
+  backgroundImageData: string,
+  backgroundImageMimeType: string,
+  userPrompt?: string,
+  lookAndFeel?: string
+): Promise<{
+  promptUsed: string
+  imageData: string
+  mimeType: string
+}> {
+  try {
+    console.log('Generating composite with Gemini...')
+
+    const model = getGenAI().getGenerativeModel({
+      model: 'gemini-3-pro-image-preview',
+      generationConfig: {
+        temperature: 0.4, // Lower temperature for precise compositing
+        topP: 0.9,
+        maxOutputTokens: 32768,
+        responseModalities: ['TEXT', 'IMAGE'],
+      } as any,
+    })
+
+    // Build the composite generation prompt
+    const prompt = `Compose these two images into a single professional product photograph:
+
+Image 1 (Product): This is the product that needs to be placed in the scene.
+Image 2 (Background): This is the background scene/environment.
+
+${userPrompt ? `USER INSTRUCTION: ${userPrompt}\n\n` : ''}${lookAndFeel ? `STYLE GUIDELINE: ${lookAndFeel}\n\n` : ''}CRITICAL INSTRUCTIONS:
+
+PRESERVE EXACTLY (DO NOT CHANGE):
+✓ Product appearance: Keep the EXACT labels, text, branding, colors, and shape
+✓ Product design: Maintain all visual details of the product exactly as shown
+✓ Background scene: Keep models, hands, props, and scene elements unchanged
+✓ Background setting: Preserve the environment, mood boxes, objects as-is
+
+WHAT YOU SHOULD DO:
+✓ Place the product NATURALLY in the background scene ${userPrompt ? `(following: ${userPrompt})` : ''}
+✓ Match the product's lighting to the background's lighting
+✓ Add natural shadows and reflections where the product touches surfaces
+✓ Make it look like the product was photographed IN that background, not pasted on
+✓ Adjust depth of field to make the composition feel cohesive
+✓ Scale the product appropriately for the scene
+
+WHAT YOU MUST NOT DO:
+✗ Do NOT alter the product's labels, text, or branding
+✗ Do NOT change the background model/person's appearance
+✗ Do NOT modify the product's colors or design
+✗ Do NOT add new text, logos, or watermarks
+✗ Do NOT change the core elements of either image
+
+Think of this as taking a real product and photographing it in the background scene with professional lighting and composition. The product and background are real and fixed—you're just creating the photograph.
+
+Return a professional, advertisement-quality composite image.`
+
+    // Prepare content parts with both images
+    const contentParts: any[] = []
+
+    // Add product image
+    const productBase64 = productImageData.replace(/^data:image\/\w+;base64,/, '')
+    contentParts.push({
+      inlineData: {
+        data: productBase64,
+        mimeType: productImageMimeType,
+      },
+    })
+
+    // Add background image
+    const backgroundBase64 = backgroundImageData.replace(/^data:image\/\w+;base64,/, '')
+    contentParts.push({
+      inlineData: {
+        data: backgroundBase64,
+        mimeType: backgroundImageMimeType,
+      },
+    })
+
+    // Add the text prompt
+    contentParts.push({ text: prompt })
+
+    const result = await model.generateContent(contentParts)
+    const response = await result.response
+
+    // Extract the generated image from the response
+    const candidates = response.candidates
+    if (candidates && candidates.length > 0) {
+      const parts = candidates[0].content.parts
+      const imagePart = parts?.find((part: any) => part.inlineData)
+
+      if (imagePart && 'inlineData' in imagePart && imagePart.inlineData?.data) {
+        const generatedBase64 = imagePart.inlineData.data
+        const generatedMimeType = imagePart.inlineData.mimeType || 'image/jpeg'
+
+        console.log('   ✅ Composite generated successfully')
+
+        return {
+          promptUsed: prompt,
+          imageData: `data:${generatedMimeType};base64,${generatedBase64}`,
+          mimeType: generatedMimeType,
+        }
+      } else {
+        throw new Error('No image in composite response')
+      }
+    } else {
+      throw new Error('No candidates in composite response')
+    }
+  } catch (error) {
+    console.error('Error generating composite:', error)
+    throw new Error('Failed to generate composite')
+  }
+}
+
+/**
  * Legacy function for backward compatibility
  */
 export async function generateImage(
