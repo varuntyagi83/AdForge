@@ -10,7 +10,7 @@ import * as path from 'path'
 // Load environment variables
 dotenv.config({ path: path.join(__dirname, '..', '.env.local') })
 
-const API_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://adforge-theta.vercel.app'
+const API_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://ad-forge-opal.vercel.app'
 const CRON_SECRET = process.env.CRON_SECRET
 
 if (!CRON_SECRET) {
