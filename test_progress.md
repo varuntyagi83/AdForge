@@ -394,6 +394,64 @@ const productResults = products.map((product: any) => ({
 
 **Commit:** 508db0a
 
+#### Issue 2: Sidebar Using Mock Categories (Production Bug)
+**Error:**
+- Sidebar only showing "Summer Campaign" and "Product Launch"
+- Real categories (e.g., "Greenworld") not appearing in sidebar
+- Categories displayed correctly on main page but missing from navigation
+- "+" button in sidebar non-functional
+
+**Root Cause:**
+Sidebar component still using hard-coded mock data from initial scaffolding:
+```typescript
+const mockCategories = [
+  { id: '1', name: 'Summer Campaign', slug: 'summer-campaign' },
+  { id: '2', name: 'Product Launch', slug: 'product-launch' },
+]
+```
+This was meant to be replaced during Phase 1 but was overlooked.
+
+**Impact:**
+- Users cannot see their actual categories in navigation
+- Cannot navigate to category detail pages from sidebar
+- Confusion as categories exist but don't appear in UI
+
+**Fix:**
+```typescript
+// Added state and API fetch
+const [categories, setCategories] = useState<Category[]>([])
+const [loading, setLoading] = useState(true)
+
+useEffect(() => {
+  fetchCategories()
+}, [])
+
+const fetchCategories = async () => {
+  const response = await fetch('/api/categories')
+  const data = await response.json()
+  if (response.ok) {
+    setCategories(data.categories || [])
+  }
+}
+
+// Updated render to use real data
+{categories.map((category) => (
+  <Link href={`/categories/${category.id}`}>
+    {category.name}
+  </Link>
+))}
+```
+
+**Additional Improvements:**
+- Added loading skeleton while fetching
+- Added empty state when no categories
+- Made category links navigate to detail pages
+- Wired up "+" button to navigate to categories page
+
+**Status:** ✅ Fixed in `src/components/layout/Sidebar.tsx`
+
+**Commit:** a082470
+
 ---
 
 ## 📋 Manual Testing Checklist (Requires Authentication)
@@ -553,7 +611,7 @@ Upcoming tests will include:
 
 ## 📝 Test Execution Log
 
-### February 21, 2026
+### February 21, 2026 - Morning
 - ✅ Completed Phase 1.5 implementation
 - ✅ Build verification passed
 - ✅ TypeScript compilation passed
@@ -563,6 +621,14 @@ Upcoming tests will include:
 - ✅ Updated progress.md
 - ✅ Created test_phase1_5.py for automated testing
 - ✅ Created test_progress.md for tracking
+
+### February 21, 2026 - Afternoon
+- 🐛 **Bug Report:** Sidebar showing mock categories instead of real data
+- 🔍 **Investigation:** Found hard-coded mockCategories in Sidebar.tsx
+- ✅ **Fixed:** Replaced mock data with API fetch
+- ✅ **Enhanced:** Added loading states, empty states, working links
+- ✅ **Tested:** Build passed, deployed to production
+- ✅ **Documented:** Added Issue #2 to test_progress.md
 
 ### Test Commands
 ```bash
