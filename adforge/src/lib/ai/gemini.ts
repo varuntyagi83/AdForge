@@ -82,8 +82,8 @@ export async function generateAngledShots(
         temperature: 0.4, // Lower temperature for consistent product representation
         topP: 0.95,
         maxOutputTokens: 32768,
-        responseModalities: ['TEXT', 'IMAGE'],
-      },
+        responseModalities: ['TEXT', 'IMAGE'], // Type not yet in SDK, but supported by API
+      } as any,
     })
 
     // Convert base64 image to proper format
