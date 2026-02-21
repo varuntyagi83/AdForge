@@ -140,20 +140,24 @@ export function Sidebar() {
 
                   return (
                     <div key={category.id} className="space-y-1">
-                      <Link
-                        href={`/categories/${category.id}`}
-                        onClick={() => setSelectedCategory(category.id)}
+                      <button
+                        onClick={() => toggleCategory(category.id)}
                         className={cn(
                           'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
-                          pathname.includes(category.id)
+                          isSelected
                             ? 'bg-accent text-accent-foreground'
                             : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                         )}
                       >
-                        <ChevronRight className="h-4 w-4" />
+                        {isExpanded ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
                         <FolderOpen className="h-4 w-4" />
                         <span className="flex-1 text-left">{category.name}</span>
-                      </Link>
+                      </button>
+                      {isExpanded && <CategoryNav categoryId={category.id} />}
                     </div>
                   )
                 })
