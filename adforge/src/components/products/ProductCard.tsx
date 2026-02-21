@@ -43,20 +43,20 @@ export function ProductCard({ product, categoryId, onDeleted }: ProductCardProps
 
   const fetchImages = async () => {
     try {
-      const { data: images } = await supabase
-        .from('product_images')
-        .select('id, file_path, is_primary')
-        .eq('product_id', product.id)
-        .order('is_primary', { ascending: false })
+      // Use the API endpoint instead of direct database query
+      // This ensures we get the correct public_url (Google Drive or Supabase)
+      const response = await fetch(
+        `/api/categories/${categoryId}/products/${product.id}/images`
+      )
 
-      if (images) {
+      if (response.ok) {
+        const data = await response.json()
+        const images = data.images || []
+
         setImageCount(images.length)
-        const primary = images.find((img) => img.is_primary)
-        if (primary) {
-          const {
-            data: { publicUrl },
-          } = supabase.storage.from('product-images').getPublicUrl(primary.file_path)
-          setPrimaryImage(publicUrl)
+        const primary = images.find((img: any) => img.is_primary)
+        if (primary && primary.public_url) {
+          setPrimaryImage(primary.public_url)
         }
       }
     } catch (error) {
@@ -105,6 +105,11 @@ export function ProductCard({ product, categoryId, onDeleted }: ProductCardProps
                 src={primaryImage}
                 alt={product.name}
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  // Fallback to placeholder on error
+                  console.error('Failed to load image:', primaryImage)
+                  setPrimaryImage(null) // Show the "No images yet" placeholder
+                }}
               />
             ) : (
               <div className="text-center text-muted-foreground">

@@ -15,6 +15,7 @@ interface ProductImage {
   mime_type: string
   is_primary: boolean
   created_at: string
+  public_url?: string  // Added: public URL from API (Google Drive or Supabase)
 }
 
 interface ProductImageGalleryProps {
@@ -113,13 +114,6 @@ export function ProductImageGallery({
     }
   }
 
-  const getImageUrl = (filePath: string) => {
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from('product-images').getPublicUrl(filePath)
-    return publicUrl
-  }
-
   if (loading) {
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
@@ -148,9 +142,13 @@ export function ProductImageGallery({
         <div key={image.id} className="relative group">
           <div className="aspect-square rounded-lg overflow-hidden bg-muted">
             <img
-              src={getImageUrl(image.file_path)}
+              src={image.public_url || ''}
               alt={image.file_name}
               className="w-full h-full object-cover"
+              onError={(e) => {
+                // Fallback to placeholder on error
+                e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23ddd" width="200" height="200"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle"%3EImage%3C/text%3E%3C/svg%3E'
+              }}
             />
           </div>
 
