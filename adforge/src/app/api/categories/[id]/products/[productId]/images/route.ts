@@ -44,7 +44,28 @@ export async function GET(
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ images })
+    // Get public URLs for the images (use Google Drive URLs if available)
+    const imagesWithUrls = (images || []).map((image) => {
+      let publicUrl: string
+
+      // Use Google Drive URL if stored in Google Drive
+      if (image.storage_provider === 'gdrive' && image.storage_url) {
+        publicUrl = image.storage_url
+      } else {
+        // Fallback to Supabase Storage URL
+        const {
+          data: { publicUrl: supabaseUrl },
+        } = supabase.storage.from('product-images').getPublicUrl(image.file_path)
+        publicUrl = supabaseUrl
+      }
+
+      return {
+        ...image,
+        public_url: publicUrl,
+      }
+    })
+
+    return NextResponse.json({ images: imagesWithUrls })
   } catch (error) {
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -132,7 +153,7 @@ export async function POST(
         data: { publicUrl },
       } = supabase.storage.from('product-images').getPublicUrl(fileName)
 
-      // Save to database
+      // Save to database with storage sync fields
       const { data: imageRecord, error: dbError } = await supabase
         .from('product_images')
         .insert({
@@ -142,6 +163,9 @@ export async function POST(
           file_size: file.size,
           mime_type: file.type,
           is_primary: isFirstImage && i === 0, // First image of first upload is primary
+          storage_provider: 'supabase',
+          storage_path: fileName,
+          storage_url: publicUrl,
         })
         .select()
         .single()
