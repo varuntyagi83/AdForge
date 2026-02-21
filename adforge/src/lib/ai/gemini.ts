@@ -1,11 +1,8 @@
-import 'server-only'
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import { VertexAI } from '@google-cloud/vertexai'
 import { ANGLE_VARIATIONS } from './angle-variations'
 
 // Lazy initialization of Gemini AI client
 let genAI: GoogleGenerativeAI | null = null
-let vertexAI: VertexAI | null = null
 
 function getGenAI(): GoogleGenerativeAI {
   if (!genAI) {
@@ -16,23 +13,6 @@ function getGenAI(): GoogleGenerativeAI {
     genAI = new GoogleGenerativeAI(apiKey)
   }
   return genAI
-}
-
-function getVertexAI(): VertexAI {
-  if (!vertexAI) {
-    const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID || ''
-    const location = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1'
-
-    if (!projectId) {
-      throw new Error('GOOGLE_CLOUD_PROJECT_ID environment variable is not set')
-    }
-
-    vertexAI = new VertexAI({
-      project: projectId,
-      location: location,
-    })
-  }
-  return vertexAI
 }
 
 /**
@@ -76,34 +56,9 @@ Provide a concise but detailed description that would help recreate this product
 }
 
 /**
- * Generates a detailed prompt for creating an angled variation of a product
- */
-export async function generateAnglePrompt(
-  productDescription: string,
-  angleVariation: (typeof ANGLE_VARIATIONS)[number],
-  lookAndFeel?: string
-): Promise<string> {
-  const basePrompt = `Product photography: ${angleVariation.prompt}.
-
-Product description: ${productDescription}
-
-${lookAndFeel ? `Style and aesthetic: ${lookAndFeel}\n` : ''}
-Requirements:
-- Professional product photography lighting
-- Clean, neutral background or subtle gradient
-- High resolution and sharp focus
-- Maintain product colors and materials accurately
-- ${angleVariation.description}
-- No text or watermarks
-- Commercial quality`
-
-  return basePrompt
-}
-
-/**
- * Generates angled shot variations using Vertex AI Imagen 4
+ * Generates angled shot variations using Gemini 3 Pro Image Preview
  *
- * Uses Google's latest Imagen 4 model for superior image quality and text preservation
+ * Uses Gemini's image-to-image generation for better product preservation
  */
 export async function generateAngledShots(
   productImageData: string,
@@ -120,86 +75,90 @@ export async function generateAngledShots(
   }>
 > {
   try {
-    // Step 1: Analyze the original product image
-    console.log('Analyzing product image...')
-    const productDescription = await analyzeProductImage(
-      productImageData,
-      productImageMimeType
-    )
-
-    // Step 2: Initialize Vertex AI Imagen 4 model
-    const vertex = getVertexAI()
-    const generativeModel = vertex.preview.getGenerativeModel({
-      model: 'imagen-4.0-generate-001', // Latest Imagen 4 for best quality and text preservation
+    // Initialize Gemini model with image generation support
+    const model = getGenAI().getGenerativeModel({
+      model: 'gemini-3-pro-image-preview',
+      generationConfig: {
+        temperature: 0.4, // Lower temperature for consistent product representation
+        topP: 0.95,
+        maxOutputTokens: 32768,
+        responseModalities: ['TEXT', 'IMAGE'],
+      },
     })
 
-    // Step 3: Convert base64 image to proper format
+    // Convert base64 image to proper format
     const base64Data = productImageData.replace(/^data:image\/\w+;base64,/, '')
 
-    // Step 4: Generate each angle variation
+    // Generate each angle variation
     const results = []
 
     for (const angle of angles) {
       console.log(`Generating ${angle.name} angle...`)
 
-      // Generate detailed prompt for this angle
-      const prompt = await generateAnglePrompt(
-        productDescription,
-        angle,
-        lookAndFeel
-      )
+      // Create prompt for this specific angle
+      const prompt = `Create a variation of this product image showing: ${angle.description}.
+
+Angle instruction: ${angle.prompt}
+
+${lookAndFeel ? `Style: ${lookAndFeel}\n` : ''}
+CRITICAL REQUIREMENTS:
+- Preserve ALL text on the product exactly as shown
+- Maintain the same product colors, materials, and design
+- Keep the same background style
+- Only change the viewing angle to show: ${angle.description}
+- High quality, professional product photography
+- Do not add or remove any elements
+
+Return a high-quality image with the product rotated to the specified angle while preserving all details.`
 
       try {
-        // Generate image using Vertex AI Imagen 4
-        const request = {
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                {
-                  text: prompt,
-                },
-                {
-                  inlineData: {
-                    mimeType: productImageMimeType,
-                    data: base64Data,
-                  },
-                },
-              ],
+        const result = await model.generateContent([
+          {
+            inlineData: {
+              data: base64Data,
+              mimeType: productImageMimeType,
             },
-          ],
-          generationConfig: {
-            temperature: 0.4, // Lower temperature for more consistent product representation
-            topK: 32,
-            topP: 1,
-            maxOutputTokens: 2048,
           },
-        }
+          {
+            text: prompt,
+          },
+        ])
 
-        const response = await generativeModel.generateContent(request)
-        const generatedImage = response.response.candidates?.[0]?.content?.parts?.[0]
+        const response = await result.response
 
-        if (
-          generatedImage &&
-          'inlineData' in generatedImage &&
-          generatedImage.inlineData?.data
-        ) {
-          // Successfully generated image
-          const generatedBase64 = generatedImage.inlineData.data
-          const generatedMimeType = generatedImage.inlineData.mimeType || 'image/jpeg'
+        // Extract the generated image from the response
+        const candidates = response.candidates
+        if (candidates && candidates.length > 0) {
+          const parts = candidates[0].content.parts
 
-          results.push({
-            angleName: angle.name,
-            angleDescription: angle.description,
-            promptUsed: prompt,
-            imageData: `data:${generatedMimeType};base64,${generatedBase64}`,
-            mimeType: generatedMimeType,
-          })
+          // Find the image part
+          const imagePart = parts?.find((part: any) => part.inlineData)
 
-          console.log(`   ✅ ${angle.name} generated successfully`)
+          if (imagePart && 'inlineData' in imagePart && imagePart.inlineData?.data) {
+            const generatedBase64 = imagePart.inlineData.data
+            const generatedMimeType = imagePart.inlineData.mimeType || 'image/jpeg'
+
+            results.push({
+              angleName: angle.name,
+              angleDescription: angle.description,
+              promptUsed: prompt,
+              imageData: `data:${generatedMimeType};base64,${generatedBase64}`,
+              mimeType: generatedMimeType,
+            })
+
+            console.log(`   ✅ ${angle.name} generated successfully`)
+          } else {
+            console.warn(`   ⚠️  No image in response for ${angle.name}, using original as fallback`)
+            results.push({
+              angleName: angle.name,
+              angleDescription: angle.description,
+              promptUsed: prompt,
+              imageData: productImageData,
+              mimeType: productImageMimeType,
+            })
+          }
         } else {
-          console.warn(`   ⚠️  Failed to generate ${angle.name}, using original image as fallback`)
-          // Fallback to original image if generation fails
+          console.warn(`   ⚠️  No candidates in response for ${angle.name}, using original as fallback`)
           results.push({
             angleName: angle.name,
             angleDescription: angle.description,

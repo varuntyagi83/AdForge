@@ -9,7 +9,6 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@google-cloud/vertexai": "^1.10.0",
     "@google/genai": "^1.42.0",
     "@google/generative-ai": "^0.24.1",
     "@supabase/ssr": "^0.8.0",
@@ -25,7 +24,6 @@
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "server-only": "^0.0.1",
     "sharp": "^0.34.5",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
