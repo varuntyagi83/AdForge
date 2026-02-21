@@ -194,21 +194,33 @@ AdForge is an AI-powered ad creative pipeline that automates the generation of p
 
 ## 📋 Phase 3: Background & Composite Generation (PLANNED)
 
+**⚠️ CRITICAL:** All asset types MUST implement the same storage sync system as angled_shots (see `docs/STORAGE_SYNC_REQUIREMENTS.md`)
+
 ### 3.1 Background Generation
 - [ ] Style extraction from category look & feel
 - [ ] Background prompt generation
 - [ ] Multiple background variations
 - [ ] Background library per category
+- [ ] **Storage sync:** Google Drive integration
+- [ ] **Storage sync:** Database triggers for deletion queue
+- [ ] **Storage sync:** Cleanup scripts support
+- [ ] **Storage sync:** Thumbnail API URLs
 
 ### 3.2 Composite Creation
 - [ ] Product + background compositing
 - [ ] Multiple composite variations
 - [ ] Composites gallery
 - [ ] Regeneration options
+- [ ] **Storage sync:** Google Drive integration
+- [ ] **Storage sync:** Database triggers for deletion queue
+- [ ] **Storage sync:** Cleanup scripts support
+- [ ] **Storage sync:** Thumbnail API URLs
 
 ---
 
 ## 📋 Phase 4: Copy Generation with GPT-4o (PLANNED)
+
+**⚠️ CRITICAL:** All asset types MUST implement the same storage sync system (see `docs/STORAGE_SYNC_REQUIREMENTS.md`)
 
 ### 4.1 OpenAI Integration
 - [ ] GPT-4o API setup
@@ -221,15 +233,24 @@ AdForge is an AI-powered ad creative pipeline that automates the generation of p
 - [ ] Edit and refine copy
 - [ ] Version history
 - [ ] Export copy
+- [ ] **Storage sync:** If copy stored as files, implement full sync
+- [ ] **Storage sync:** Database triggers for deletion queue
+- [ ] **Storage sync:** Cleanup scripts support
 
 ---
 
 ## 📋 Phase 5: Design Guidelines & Safe Zones (PLANNED)
 
+**⚠️ CRITICAL:** All asset types MUST implement the same storage sync system (see `docs/STORAGE_SYNC_REQUIREMENTS.md`)
+
 ### 5.1 Guidelines Upload
 - [ ] PDF/image upload for guidelines
 - [ ] Parse safe zones
 - [ ] Store guideline specs
+- [ ] **Storage sync:** Google Drive integration
+- [ ] **Storage sync:** Database triggers for deletion queue
+- [ ] **Storage sync:** Cleanup scripts support
+- [ ] **Storage sync:** Thumbnail API URLs for image guidelines
 
 ### 5.2 Safe Zone Application
 - [ ] Apply safe zones to composites
@@ -240,11 +261,17 @@ AdForge is an AI-powered ad creative pipeline that automates the generation of p
 
 ## 📋 Phase 6: Final Asset Assembly (PLANNED)
 
+**⚠️ CRITICAL:** All asset types MUST implement the same storage sync system (see `docs/STORAGE_SYNC_REQUIREMENTS.md`)
+
 ### 6.1 Asset Combination
 - [ ] Combine all elements (image + copy + guidelines)
 - [ ] Preview final creatives
 - [ ] Multiple layout options
 - [ ] Final asset library
+- [ ] **Storage sync:** Google Drive integration
+- [ ] **Storage sync:** Database triggers for deletion queue
+- [ ] **Storage sync:** Cleanup scripts support
+- [ ] **Storage sync:** Thumbnail API URLs
 
 ---
 
@@ -435,11 +462,24 @@ AdForge is an AI-powered ad creative pipeline that automates the generation of p
 
 ## 🚀 Next Steps
 
-### Immediate (Phase 1 Completion)
-1. Implement multi-image upload for products
-2. Create @ reference picker component
-3. Add product editing functionality
-4. Improve empty states and loading states
+### Immediate (Storage Sync for Existing Assets)
+1. **Apply storage sync to product_images**
+   - Add storage fields (provider, path, url, gdrive_file_id)
+   - Update DELETE endpoint to sync with Google Drive
+   - Create database trigger for deletion queue
+   - Update cleanup scripts
+2. **Apply storage sync to brand_assets**
+   - Add storage fields
+   - Update DELETE endpoint
+   - Create database trigger
+   - Update cleanup scripts
+
+### Phase 3-7 Requirements
+- **EVERY new asset type MUST:**
+  - Follow `docs/STORAGE_SYNC_REQUIREMENTS.md`
+  - Implement 3-layer sync (UI ↔ Supabase ↔ Google Drive)
+  - Support all 4 deletion scenarios
+  - Include cleanup script support
 
 ### Short Term (Phase 2 - Next 1-2 weeks)
 1. Set up Google Gemini API integration
