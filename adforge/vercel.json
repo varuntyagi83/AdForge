@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/admin/process-deletion-queue",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}

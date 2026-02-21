@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { deleteFile } from '@/lib/storage'
 
 /**
  * DELETE /api/categories/[id]/angled-shots/[angleId]
- * Deletes an angled shot from storage and database
+ * Deletes an angled shot from Google Drive storage and Supabase database
  */
 export async function DELETE(
   request: NextRequest,
@@ -25,7 +26,7 @@ export async function DELETE(
     // Get angled shot and verify ownership
     const { data: angledShot } = await supabase
       .from('angled_shots')
-      .select('id, storage_path, category_id, user_id')
+      .select('id, storage_path, storage_provider, gdrive_file_id, category_id, user_id')
       .eq('id', angleId)
       .eq('category_id', categoryId)
       .eq('user_id', user.id)
@@ -38,12 +39,28 @@ export async function DELETE(
       )
     }
 
-    // Delete from storage
-    const { error: storageError } = await supabase.storage
-      .from('angled-shots')
-      .remove([angledShot.storage_path])
-
-    if (storageError) {
+    // Delete from storage (Google Drive or Supabase depending on provider)
+    try {
+      if (angledShot.storage_provider === 'gdrive' && angledShot.gdrive_file_id) {
+        // Use file ID for faster deletion
+        await deleteFile(angledShot.gdrive_file_id, {
+          provider: 'gdrive',
+        })
+        console.log(`Deleted from Google Drive: ${angledShot.gdrive_file_id}`)
+      } else if (angledShot.storage_provider === 'supabase') {
+        // Legacy Supabase storage
+        await supabase.storage
+          .from('angled-shots')
+          .remove([angledShot.storage_path])
+        console.log(`Deleted from Supabase Storage: ${angledShot.storage_path}`)
+      } else {
+        // Fallback: try path-based deletion
+        await deleteFile(angledShot.storage_path, {
+          provider: angledShot.storage_provider as any,
+        })
+        console.log(`Deleted using path: ${angledShot.storage_path}`)
+      }
+    } catch (storageError) {
       console.error('Storage deletion error:', storageError)
       // Continue anyway - database cleanup is more critical
     }
