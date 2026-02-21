@@ -173,6 +173,8 @@ async function cleanupOrphanedMetadata(dryRun: boolean = true) {
   try {
     totalOrphaned += await checkTableForOrphans('angled_shots', 'angle_name', dryRun)
     totalOrphaned += await checkTableForOrphans('product_images', 'file_name', dryRun)
+    totalOrphaned += await checkTableForOrphans('backgrounds', 'name', dryRun)
+    totalOrphaned += await checkTableForOrphans('composites', 'name', dryRun)
   } catch (error) {
     console.error('❌ Error during cleanup:', error)
     process.exit(1)

@@ -165,10 +165,32 @@ export async function POST(request: NextRequest) {
       dryRun
     )
 
+    const backgroundsResult = await checkTableForOrphans(
+      supabase,
+      drive,
+      'backgrounds',
+      'name',
+      dryRun
+    )
+
+    const compositesResult = await checkTableForOrphans(
+      supabase,
+      drive,
+      'composites',
+      'name',
+      dryRun
+    )
+
     const totalOrphaned =
-      angledShotsResult.stats.orphaned + productImagesResult.stats.orphaned
+      angledShotsResult.stats.orphaned +
+      productImagesResult.stats.orphaned +
+      backgroundsResult.stats.orphaned +
+      compositesResult.stats.orphaned
     const totalDeleted =
-      angledShotsResult.stats.deleted + productImagesResult.stats.deleted
+      angledShotsResult.stats.deleted +
+      productImagesResult.stats.deleted +
+      backgroundsResult.stats.deleted +
+      compositesResult.stats.deleted
 
     return NextResponse.json({
       message: dryRun
@@ -187,6 +209,14 @@ export async function POST(request: NextRequest) {
         product_images: {
           stats: productImagesResult.stats,
           orphanedRecords: productImagesResult.orphanedRecords,
+        },
+        backgrounds: {
+          stats: backgroundsResult.stats,
+          orphanedRecords: backgroundsResult.orphanedRecords,
+        },
+        composites: {
+          stats: compositesResult.stats,
+          orphanedRecords: compositesResult.orphanedRecords,
         },
       },
     })
