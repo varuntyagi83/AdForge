@@ -738,17 +738,25 @@ None
 **File:** `supabase/migrations/003_align_product_images_schema.sql`
 
 **Test Cases:**
-1. ⚠️ product_assets table dropped successfully
-2. ⚠️ product_images table created with correct schema
-3. ⚠️ angled_shots.product_image_id foreign key works
-4. ⚠️ Indexes created for performance
-5. ⚠️ RLS policies enforce user data isolation
-6. ⚠️ Storage bucket product-images exists
-7. ⚠️ Storage policies allow user CRUD operations
+1. ✅ product_assets table dropped successfully
+2. ✅ product_images table created with correct schema (8 columns)
+3. ✅ angled_shots.product_image_id foreign key works (CASCADE delete)
+4. ✅ Indexes created for performance (3 indexes total)
+5. ✅ RLS policies enforce user data isolation (4 policies active)
+6. ✅ Storage bucket product-images exists
+7. ✅ Storage policies allow user CRUD operations
 
-**Status:** 🔴 Not Applied - Needs Production Deployment
+**Status:** ✅ Applied and Verified (Feb 21, 2026)
 
-**Migration Status:** ⚠️ Created but not yet applied to production database
+**Migration Status:** ✅ Successfully applied to production database via psql
+
+**Verification Details:**
+- Table structure: 8 columns (id, product_id, file_name, file_path, file_size, mime_type, is_primary, created_at)
+- Primary key: id (UUID)
+- Foreign keys: product_id → products(id), angled_shots.product_image_id → product_images(id)
+- Indexes: Primary key + 2 performance indexes
+- RLS policies: SELECT, INSERT, UPDATE, DELETE all active
+- Storage policies: All CRUD operations secured
 
 ---
 
@@ -776,10 +784,10 @@ None
 - ✅ Category created
 - ✅ Product created in category
 - ✅ Product image uploaded
-- ⚠️ Migration 003 applied to database
+- ✅ Migration 003 applied to database
 - ✅ Google Gemini API key configured
 
-**Status:** 🔴 Blocked - Requires migration and authentication
+**Status:** 🟡 Ready for Testing - Requires authentication only
 
 ---
 
@@ -836,11 +844,11 @@ None
    - **Fix:** Integrate with Vertex AI Imagen 3 API
    - **Status:** Documented, will be addressed in production deployment
 
-2. **Migration Not Applied:** Migration 003 created but not applied to production
-   - **Impact:** Database schema may have inconsistencies
-   - **Root Cause:** Needs Supabase migration deployment
-   - **Fix:** Run migration via Supabase CLI or dashboard
-   - **Status:** Pending production deployment
+2. **Migration Applied:** ✅ Migration 003 successfully applied to production (Feb 21, 2026)
+   - **Applied:** product_images table created with 8 columns, 3 indexes, 4 RLS policies
+   - **Updated:** angled_shots table now uses product_image_id foreign key
+   - **Verified:** Schema alignment complete, foreign keys working, RLS active
+   - **Status:** ✅ Complete - Ready for Phase 2 testing
 
 ### Future Enhancements
 1. Add batch save (save all generated angles at once)
@@ -951,8 +959,12 @@ Upcoming tests will include:
 - ✅ **TypeScript Check:** Clean, no errors
 - ✅ **Updated Documentation:** progress.md, test_progress.md
 - ✅ **Committed:** feat: Phase 2 - AI Image Generation (Angled Shots) - Complete Implementation
-- ⚠️ **Manual Testing:** Required (auth + migration needed)
-- ⚠️ **Migration:** 003 created but not yet applied to production
+- ✅ **Migration Applied:** 003_align_product_images_schema.sql deployed to production
+  - Used psql with DATABASE_URL from production
+  - Verified: product_images table with 8 columns, 3 indexes, 4 RLS policies
+  - Verified: angled_shots.product_image_id FK constraint working
+  - Schema alignment complete
+- 🟡 **Manual Testing:** Ready for testing (requires authentication only)
 
 ### Test Commands
 ```bash
