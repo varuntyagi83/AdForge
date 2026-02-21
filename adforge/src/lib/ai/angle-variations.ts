@@ -22,7 +22,7 @@ export const ANGLE_VARIATIONS = [
   {
     name: 'top_45deg',
     description: 'Top view, 45 degree angle',
-    prompt: 'Move the camera position to look down at the product from a 45-degree elevated angle. The top lid should be clearly visible, and you can see into the jar from above. The label text may be visible but at an angle.',
+    prompt: 'Keep the jar standing VERTICALLY UPRIGHT with the LID CLOSED on the surface. Move the camera position to look down at the product from a 45-degree elevated angle. The top of the closed black lid should be clearly visible. The label on the jar body should be visible but at an angle from this overhead perspective. DO NOT open the lid - keep it sealed and closed.',
   },
   {
     name: 'three_quarter_left',
@@ -37,6 +37,6 @@ export const ANGLE_VARIATIONS = [
   {
     name: 'isometric',
     description: 'Isometric view',
-    prompt: 'Create an isometric view (30-degree angle) showing the front and left side equally, with a slight elevated camera angle to also see the top. This technical drawing style shows three dimensions simultaneously.',
+    prompt: 'Keep the jar standing VERTICALLY UPRIGHT with the LID CLOSED. Create an isometric view (30-degree angle) showing the front and left side equally, with a slight elevated camera angle to also see the top of the closed black lid. This technical drawing style shows three dimensions simultaneously. The lid remains closed.',
   },
 ]
