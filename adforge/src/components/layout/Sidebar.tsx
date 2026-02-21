@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { useAppStore } from '@/lib/store'
 import { CategoryNav } from './CategoryNav'
@@ -18,16 +18,38 @@ import {
   FolderOpen,
 } from 'lucide-react'
 
-// Mock categories - will be replaced with real data in Phase 1
-const mockCategories = [
-  { id: '1', name: 'Summer Campaign', slug: 'summer-campaign' },
-  { id: '2', name: 'Product Launch', slug: 'product-launch' },
-]
+interface Category {
+  id: string
+  name: string
+  slug: string
+}
 
 export function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const { selectedCategoryId, setSelectedCategory } = useAppStore()
   const [expandedCategories, setExpandedCategories] = useState<string[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchCategories()
+  }, [])
+
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch('/api/categories')
+      const data = await response.json()
+
+      if (response.ok) {
+        setCategories(data.categories || [])
+      }
+    } catch (error) {
+      console.error('Failed to load categories:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const toggleCategory = (categoryId: string) => {
     setExpandedCategories((prev) =>
@@ -90,38 +112,52 @@ export function Sidebar() {
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Categories
               </h3>
-              <Button variant="ghost" size="icon" className="h-6 w-6">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => router.push('/categories')}
+                title="View all categories"
+              >
                 <Plus className="h-4 w-4" />
               </Button>
             </div>
             <div className="space-y-1">
-              {mockCategories.map((category) => {
+              {loading ? (
+                <div className="space-y-2 px-3">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="h-9 bg-muted rounded animate-pulse" />
+                  ))}
+                </div>
+              ) : categories.length === 0 ? (
+                <div className="px-3 py-4 text-center text-xs text-muted-foreground">
+                  No categories yet
+                </div>
+              ) : (
+                categories.map((category) => {
                 const isExpanded = expandedCategories.includes(category.id)
                 const isSelected = selectedCategoryId === category.id
 
-                return (
-                  <div key={category.id} className="space-y-1">
-                    <button
-                      onClick={() => toggleCategory(category.id)}
-                      className={cn(
-                        'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
-                        isSelected
-                          ? 'bg-accent text-accent-foreground'
-                          : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                      )}
-                    >
-                      {isExpanded ? (
-                        <ChevronDown className="h-4 w-4" />
-                      ) : (
+                  return (
+                    <div key={category.id} className="space-y-1">
+                      <Link
+                        href={`/categories/${category.id}`}
+                        onClick={() => setSelectedCategory(category.id)}
+                        className={cn(
+                          'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors',
+                          pathname.includes(category.id)
+                            ? 'bg-accent text-accent-foreground'
+                            : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                        )}
+                      >
                         <ChevronRight className="h-4 w-4" />
-                      )}
-                      <FolderOpen className="h-4 w-4" />
-                      <span className="flex-1 text-left">{category.name}</span>
-                    </button>
-                    {isExpanded && <CategoryNav categoryId={category.id} />}
-                  </div>
-                )
-              })}
+                        <FolderOpen className="h-4 w-4" />
+                        <span className="flex-1 text-left">{category.name}</span>
+                      </Link>
+                    </div>
+                  )
+                })
+              )}
             </div>
           </div>
         </div>
