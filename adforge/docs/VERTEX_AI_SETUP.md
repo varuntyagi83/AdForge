@@ -1,6 +1,6 @@
-# Vertex AI Imagen 3 Setup Guide
+# Vertex AI Imagen 4 Setup Guide
 
-This guide will help you set up Vertex AI Imagen 3 for generating angled product shots.
+This guide will help you set up Vertex AI Imagen 4 (latest model) for generating angled product shots.
 
 ## Prerequisites
 
@@ -83,18 +83,22 @@ Run the E2E test to verify everything works:
 npx tsx scripts/e2e-gummy-bear-test.ts
 ```
 
-## Imagen 3 Features
+## Imagen 4 Features
 
 ### Image-to-Image Generation
 
-Imagen 3 can generate new images based on:
+Imagen 4 (latest model) can generate new images based on:
 - **Reference image**: The original product photo
 - **Text prompt**: Description of the desired angle/view
 - **Style guidance**: Look and feel preferences
 
-### Text Preservation
+### Enhanced Text Preservation
 
-Imagen 3 has improved text rendering capabilities compared to previous versions, making it better at preserving text on products when generating different angles.
+Imagen 4 has **significantly improved text rendering** compared to previous versions:
+- Better at preserving text on rotated objects
+- Higher quality text generation
+- More accurate text placement and scaling
+- Improved handling of complex fonts and styling
 
 ### Parameters You Can Adjust
 
@@ -109,9 +113,11 @@ In `src/lib/ai/gemini.ts`, you can modify:
 
 ## Costs
 
-### Imagen 3 Pricing (as of 2024)
+### Imagen 4 Pricing (as of February 2026)
 
-- **Image Generation**: ~$0.04 per image
+- **imagen-4.0-generate-001**: ~$0.04 per image
+- **imagen-4.0-fast-generate-001**: ~$0.02 per image (faster, slightly lower quality)
+- **imagen-4.0-ultra-generate-001**: ~$0.08 per image (highest quality)
 - **Free tier**: 100 images per month (check current GCP free tier)
 
 ### Estimated Costs for AdForge
@@ -151,10 +157,28 @@ In `src/lib/ai/gemini.ts`, you can modify:
 
 For better text preservation on rotated products:
 
-1. **Use higher resolution images** (Imagen 3 supports up to 1024x1024)
+1. **Use higher resolution images** (Imagen 4 supports up to 2048x2048)
 2. **Provide clearer text descriptions** in the prompt
 3. **Use reference image masking** (specify which parts to preserve)
 4. **Consider post-processing** with text overlay if needed
+
+## Model Options
+
+You can switch between different Imagen 4 variants in `src/lib/ai/gemini.ts`:
+
+```typescript
+// Current (balanced):
+model: 'imagen-4.0-generate-001'
+
+// Faster, lower cost:
+model: 'imagen-4.0-fast-generate-001'  // ~$0.02/image
+
+// Highest quality:
+model: 'imagen-4.0-ultra-generate-001'  // ~$0.08/image
+
+// Imagen 3 (fallback):
+model: 'imagen-3.0-generate-001'  // If Imagen 4 isn't available
+```
 
 ## Next Steps
 

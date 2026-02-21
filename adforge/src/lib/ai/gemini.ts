@@ -138,7 +138,9 @@ Requirements:
 }
 
 /**
- * Generates angled shot variations using Vertex AI Imagen 3
+ * Generates angled shot variations using Vertex AI Imagen 4
+ *
+ * Uses Google's latest Imagen 4 model for superior image quality and text preservation
  */
 export async function generateAngledShots(
   productImageData: string,
@@ -162,10 +164,10 @@ export async function generateAngledShots(
       productImageMimeType
     )
 
-    // Step 2: Initialize Vertex AI Imagen model
+    // Step 2: Initialize Vertex AI Imagen 4 model
     const vertex = getVertexAI()
     const generativeModel = vertex.preview.getGenerativeModel({
-      model: 'imagen-3.0-generate-001',
+      model: 'imagen-4.0-generate-001', // Latest Imagen 4 for best quality and text preservation
     })
 
     // Step 3: Convert base64 image to proper format
@@ -185,7 +187,7 @@ export async function generateAngledShots(
       )
 
       try {
-        // Generate image using Vertex AI Imagen 3
+        // Generate image using Vertex AI Imagen 4
         const request = {
           contents: [
             {

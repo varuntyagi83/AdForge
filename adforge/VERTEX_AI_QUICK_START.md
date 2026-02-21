@@ -1,9 +1,9 @@
-# Quick Start: Vertex AI Imagen 3 Integration
+# Quick Start: Vertex AI Imagen 4 Integration
 
 ## ✅ What Was Done
 
 1. **Installed Vertex AI SDK**: `@google-cloud/vertexai`
-2. **Updated Image Generation**: `src/lib/ai/gemini.ts` now uses Imagen 3
+2. **Updated Image Generation**: `src/lib/ai/gemini.ts` now uses **Imagen 4** (latest model)
 3. **Added Environment Variables**: Need to configure in `.env.local`
 4. **Created Setup Guide**: See `docs/VERTEX_AI_SETUP.md`
 
@@ -62,10 +62,11 @@ npx tsx scripts/e2e-gummy-bear-test.ts
 
 ## 🎯 Expected Results
 
-Now when you run the test, Imagen 3 will:
+Now when you run the test, **Imagen 4** will:
 - ✅ Generate **actual** different angled views
-- ✅ Attempt to **preserve text** on the product
+- ✅ **Better text preservation** than previous versions
 - ✅ Maintain **product consistency** across angles
+- ✅ **Higher quality** image generation
 - ✅ Upload unique images to Google Drive
 
 ## 💰 Costs
@@ -81,25 +82,28 @@ Now when you run the test, Imagen 3 will:
 Original Image → Copy × 7 → All identical
 ```
 
-### Now (Imagen 3):
+### Now (Imagen 4):
 ```
-Original Image → AI Analysis → Imagen 3 Generation → 7 unique angles
+Original Image → AI Analysis → Imagen 4 Generation → 7 unique angles
                                     ↓
                              Prompts optimized for:
                              - Product consistency
-                             - Text preservation
+                             - Enhanced text preservation
                              - Professional photography
+                             - Superior image quality
 ```
 
 ## ⚠️ Important Notes
 
-1. **Text Preservation**: Imagen 3 is better at text than previous models, but rotating 3D text is still challenging. Results may vary.
+1. **Text Preservation**: Imagen 4 has the best text preservation of any Google model, but rotating 3D text is still challenging for AI. Results may vary depending on text complexity.
 
-2. **Fallback**: If generation fails, the system falls back to the original image (so your workflow never breaks).
+2. **Fallback**: If generation fails, the system automatically falls back to the original image (so your workflow never breaks).
 
-3. **Rate Limits**: Imagen 3 has rate limits. For production, implement queuing.
+3. **Rate Limits**: Imagen 4 has rate limits. For production, implement queuing.
 
 4. **Cost Management**: Monitor usage in GCP Console > Billing
+
+5. **Model Version**: We're using `imagen-4.0-generate-001` (Generally Available, not preview)
 
 ## 🔧 Configuration
 
