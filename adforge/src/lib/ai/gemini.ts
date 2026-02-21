@@ -103,16 +103,16 @@ ANGLE INSTRUCTION: ${angle.prompt}
 ${lookAndFeel ? `STYLE: ${lookAndFeel}\n\n` : ''}CRITICAL - DO NOT MODIFY THESE:
 ✓ Keep ALL text EXACTLY as shown - do not change, rearrange, or create new text
 ✓ Preserve the exact product design, colors, and materials
-✓ Maintain the same jar shape, lid, and label appearance
+✓ Maintain the same product shape and appearance
 ✓ Keep the same background color and lighting style
-✓ Keep all props (gummy bears, lemon slice) in similar positions
-✓ The jar must be RIGHT-SIDE UP with the lid/cap on TOP and the base on the bottom - NEVER upside down
+✓ Keep all props and surrounding objects in similar positions
+✓ The product must maintain its correct orientation (right-side up) - NEVER flip or invert it
 
 ONLY CHANGE THIS:
 ✗ Rotate the camera angle/viewpoint to: ${angle.description}
 ✗ Adjust the camera position as described in the angle instruction
 
-Think of this as moving a camera around a stationary product on a turntable. The product stays the same, only your viewing angle changes. The jar remains right-side up at all times.
+Think of this as moving a camera around a stationary product on a turntable. The product stays the same, only your viewing angle changes.
 
 Return a high-quality professional product photograph from the new angle.`
 
