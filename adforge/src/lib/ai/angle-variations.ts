@@ -27,12 +27,12 @@ export const ANGLE_VARIATIONS = [
   {
     name: 'three_quarter_left',
     description: 'Three-quarter view from left',
-    prompt: 'Keep the jar standing VERTICALLY UPRIGHT on the surface. Move the camera position about 45 degrees counterclockwise around the jar. Both the front label and the left side should be clearly visible. This is a classic product photography angle showing two faces of the container. The jar remains perfectly vertical.',
+    prompt: 'Keep the jar standing VERTICALLY UPRIGHT on the surface. Move the camera position about 45 degrees counterclockwise around the jar - this means you should see TWO DISTINCT FACES: the front label should take up about 60% of the visible jar surface, and the left side edge should take up about 40%. Both faces must be clearly visible, not just a slight rotation from front. This is a classic product photography angle showing two faces equally. The jar remains perfectly vertical.',
   },
   {
     name: 'three_quarter_right',
     description: 'Three-quarter view from right',
-    prompt: 'Keep the jar standing VERTICALLY UPRIGHT on the surface. Move the camera position about 45 degrees clockwise around the jar. Both the front label and the right side should be clearly visible. The camera is positioned to the right front of the jar, seeing two sides at once. The jar remains perfectly vertical.',
+    prompt: 'Keep the jar standing VERTICALLY UPRIGHT on the surface. Move the camera position about 45 degrees clockwise around the jar - this means you should see TWO DISTINCT FACES: the front label should take up about 60% of the visible jar surface, and the right side edge should take up about 40%. Both faces must be clearly visible, not just a slight rotation from front. The camera is positioned to see two sides at once equally. The jar remains perfectly vertical.',
   },
   {
     name: 'isometric',
