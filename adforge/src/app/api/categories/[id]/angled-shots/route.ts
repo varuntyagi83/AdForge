@@ -49,6 +49,7 @@ export async function GET(
         prompt_used,
         storage_path,
         storage_url,
+        storage_provider,
         created_at,
         product:products!inner(id, name, slug),
         product_image:product_images!inner(id, file_name)
@@ -69,19 +70,26 @@ export async function GET(
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Get public URLs for the images
-    const angledShotsWithUrls = await Promise.all(
-      (angledShots || []).map(async (shot) => {
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from('angled-shots').getPublicUrl(shot.storage_path)
+    // Get public URLs for the images (use Google Drive URLs if available)
+    const angledShotsWithUrls = (angledShots || []).map((shot) => {
+      let publicUrl: string
 
-        return {
-          ...shot,
-          public_url: publicUrl,
-        }
-      })
-    )
+      // Use Google Drive URL if stored in Google Drive
+      if (shot.storage_provider === 'gdrive' && shot.storage_url) {
+        publicUrl = shot.storage_url
+      } else {
+        // Fallback to Supabase Storage URL
+        const {
+          data: { publicUrl: supabaseUrl },
+        } = supabase.storage.from('angled-shots').getPublicUrl(shot.storage_path)
+        publicUrl = supabaseUrl
+      }
+
+      return {
+        ...shot,
+        public_url: publicUrl,
+      }
+    })
 
     return NextResponse.json({
       category: {
