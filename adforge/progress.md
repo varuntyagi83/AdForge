@@ -85,13 +85,13 @@ AdForge is an AI-powered ad creative pipeline that automates the generation of p
 - `PUT /api/categories/[id]/products/[productId]` - Update product
 - `DELETE /api/categories/[id]/products/[productId]` - Delete product
 
-### 1.4 Multi-Image Upload for Products (TODO)
-- [ ] Product image upload interface
-- [ ] Multiple image handling
-- [ ] Image preview and management
-- [ ] Set primary image
-- [ ] Delete individual images
-- [ ] Product-specific storage organization
+### 1.4 Multi-Image Upload for Products (COMPLETED ✅ Feb 21, 2026)
+- [x] Product image upload interface
+- [x] Multiple image handling
+- [x] Image preview and management
+- [x] Set primary image
+- [x] Delete individual images
+- [x] Product-specific storage organization
 
 ### 1.5 @ Reference Picker Component (TODO)
 - [ ] Autocomplete component for @mentions
