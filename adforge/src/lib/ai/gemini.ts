@@ -50,7 +50,7 @@ export async function analyzeProductImage(
   mimeType: string = 'image/jpeg'
 ): Promise<string> {
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' })
+    const model = genAI.getGenerativeModel({ model: 'gemini-3-pro-image-preview' })
 
     // Convert base64 to proper format if needed
     const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '')
