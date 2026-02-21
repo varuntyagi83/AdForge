@@ -1,3 +1,5 @@
+import { AngledShotsPage } from '@/components/angled-shots/AngledShotsPage'
+
 export default async function CategoryStepPage({
   params,
 }: {
@@ -5,6 +7,12 @@ export default async function CategoryStepPage({
 }) {
   const { categoryId, step } = await params
 
+  // Route to appropriate page based on step
+  if (step === 'angled-shots') {
+    return <AngledShotsPage categoryId={categoryId} />
+  }
+
+  // Placeholder for other steps
   return (
     <div className="container mx-auto p-6">
       <div className="mb-6">
