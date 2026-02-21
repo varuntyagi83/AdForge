@@ -52,12 +52,19 @@ export function Sidebar() {
   }
 
   const toggleCategory = (categoryId: string) => {
+    const isCurrentlyExpanded = expandedCategories.includes(categoryId)
+
     setExpandedCategories((prev) =>
-      prev.includes(categoryId)
+      isCurrentlyExpanded
         ? prev.filter((id) => id !== categoryId)
         : [...prev, categoryId]
     )
     setSelectedCategory(categoryId)
+
+    // When expanding, navigate to the category's products page
+    if (!isCurrentlyExpanded) {
+      router.push(`/categories/${categoryId}`)
+    }
   }
 
   const isBrandAssetsActive = pathname === '/brand-assets'
