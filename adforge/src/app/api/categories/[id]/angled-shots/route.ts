@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { uploadFile } from '@/lib/storage'
 
 /**
  * GET /api/categories/[id]/angled-shots
@@ -189,28 +190,13 @@ export async function POST(
     const fileExt = mimeType?.split('/')[1] || 'jpg'
     const fileName = `${category.slug}/${product.slug}/angled-shots/${angleName}_${Date.now()}.${fileExt}`
 
-    // Upload to storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('angled-shots')
-      .upload(fileName, buffer, {
-        contentType: mimeType || 'image/jpeg',
-        upsert: false,
-      })
+    // Upload to Google Drive
+    const storageFile = await uploadFile(buffer, fileName, {
+      contentType: mimeType || 'image/jpeg',
+      provider: 'gdrive',
+    })
 
-    if (uploadError) {
-      console.error('Upload error:', uploadError)
-      return NextResponse.json(
-        { error: 'Failed to upload angled shot' },
-        { status: 500 }
-      )
-    }
-
-    // Get public URL
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from('angled-shots').getPublicUrl(fileName)
-
-    // Save to database
+    // Save to database with Google Drive storage sync fields
     const { data: angledShot, error: dbError } = await supabase
       .from('angled_shots')
       .insert({
@@ -221,8 +207,10 @@ export async function POST(
         angle_name: angleName,
         angle_description: angleDescription,
         prompt_used: promptUsed || null,
-        storage_path: fileName,
-        storage_url: publicUrl,
+        storage_provider: 'gdrive',
+        storage_path: storageFile.path,
+        storage_url: storageFile.publicUrl,
+        gdrive_file_id: storageFile.fileId || null,
         metadata: {},
       })
       .select()
@@ -230,8 +218,6 @@ export async function POST(
 
     if (dbError) {
       console.error('Database error:', dbError)
-      // Try to delete the uploaded file
-      await supabase.storage.from('angled-shots').remove([fileName])
       return NextResponse.json(
         { error: 'Failed to save angled shot record' },
         { status: 500 }
@@ -243,7 +229,7 @@ export async function POST(
         message: 'Angled shot saved successfully',
         angledShot: {
           ...angledShot,
-          public_url: publicUrl,
+          public_url: storageFile.publicUrl,
         },
       },
       { status: 201 }
