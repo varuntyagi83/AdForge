@@ -2,6 +2,109 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { google } from 'googleapis'
 
+interface OrphanedRecord {
+  id: string
+  gdrive_file_id: string
+  display_name: string
+}
+
+interface TableStats {
+  total: number
+  valid: number
+  orphaned: number
+  deleted: number
+}
+
+async function checkTableForOrphans(
+  supabase: any,
+  drive: any,
+  tableName: string,
+  displayNameField: string,
+  dryRun: boolean
+): Promise<{ stats: TableStats; orphanedRecords: OrphanedRecord[] }> {
+  // Get all records with Google Drive files
+  const { data: records, error: fetchError } = await supabase
+    .from(tableName)
+    .select(`id, gdrive_file_id, storage_provider, ${displayNameField}`)
+    .eq('storage_provider', 'gdrive')
+    .not('gdrive_file_id', 'is', null)
+
+  if (fetchError) {
+    throw new Error(`Failed to fetch ${tableName}: ${fetchError.message}`)
+  }
+
+  if (!records || records.length === 0) {
+    return {
+      stats: { total: 0, valid: 0, orphaned: 0, deleted: 0 },
+      orphanedRecords: [],
+    }
+  }
+
+  const orphanedRecords: OrphanedRecord[] = []
+
+  // Check each file
+  for (const record of records) {
+    try {
+      const response = await drive.files.get({
+        fileId: record.gdrive_file_id!,
+        fields: 'id, trashed',
+        supportsAllDrives: true,
+      })
+
+      // If file is trashed, mark as orphaned
+      if (response.data.trashed) {
+        orphanedRecords.push({
+          id: record.id,
+          gdrive_file_id: record.gdrive_file_id,
+          display_name: record[displayNameField] || 'Unknown',
+        })
+      }
+    } catch (error: any) {
+      // File not found (404) or other errors - mark as orphaned
+      if (error.code === 404 || error.status === 404) {
+        orphanedRecords.push({
+          id: record.id,
+          gdrive_file_id: record.gdrive_file_id,
+          display_name: record[displayNameField] || 'Unknown',
+        })
+      } else {
+        console.error(`Error checking file ${record.gdrive_file_id}:`, error.message)
+        // For other errors, also mark as orphaned to be safe
+        orphanedRecords.push({
+          id: record.id,
+          gdrive_file_id: record.gdrive_file_id,
+          display_name: record[displayNameField] || 'Unknown',
+        })
+      }
+    }
+  }
+
+  const stats: TableStats = {
+    total: records.length,
+    valid: records.length - orphanedRecords.length,
+    orphaned: orphanedRecords.length,
+    deleted: 0,
+  }
+
+  // Delete orphaned records if not dry run
+  if (!dryRun && orphanedRecords.length > 0) {
+    const idsToDelete = orphanedRecords.map(r => r.id)
+
+    const { error: deleteError } = await supabase
+      .from(tableName)
+      .delete()
+      .in('id', idsToDelete)
+
+    if (deleteError) {
+      throw new Error(`Failed to delete from ${tableName}: ${deleteError.message}`)
+    }
+
+    stats.deleted = orphanedRecords.length
+  }
+
+  return { stats, orphanedRecords }
+}
+
 /**
  * Admin endpoint to cleanup orphaned metadata
  * Removes Supabase records where Google Drive files are trashed or missing
@@ -37,95 +140,47 @@ export async function POST(request: NextRequest) {
 
     const drive = google.drive({ version: 'v3', auth })
 
-    // Get all angled_shots with Google Drive files
-    const { data: angledShots, error: fetchError } = await supabase
-      .from('angled_shots')
-      .select('id, gdrive_file_id, angle_name, storage_provider')
-      .eq('storage_provider', 'gdrive')
-      .not('gdrive_file_id', 'is', null)
+    // Check all tables with storage sync
+    const angledShotsResult = await checkTableForOrphans(
+      supabase,
+      drive,
+      'angled_shots',
+      'angle_name',
+      dryRun
+    )
 
-    if (fetchError) {
-      return NextResponse.json(
-        { error: 'Failed to fetch records', details: fetchError.message },
-        { status: 500 }
-      )
-    }
+    const productImagesResult = await checkTableForOrphans(
+      supabase,
+      drive,
+      'product_images',
+      'file_name',
+      dryRun
+    )
 
-    if (!angledShots || angledShots.length === 0) {
-      return NextResponse.json({
-        message: 'No Google Drive records to check',
-        stats: { total: 0, orphaned: 0, deleted: 0 },
-      })
-    }
-
-    const orphanedRecords: typeof angledShots = []
-
-    // Check each file
-    for (const shot of angledShots) {
-      try {
-        const response = await drive.files.get({
-          fileId: shot.gdrive_file_id!,
-          fields: 'id, trashed',
-          supportsAllDrives: true,
-        })
-
-        // If file is trashed, mark as orphaned
-        if (response.data.trashed) {
-          orphanedRecords.push(shot)
-        }
-      } catch (error: any) {
-        // File not found (404) or other errors - mark as orphaned
-        if (error.code === 404 || error.status === 404) {
-          orphanedRecords.push(shot)
-        } else {
-          console.error(`Error checking file ${shot.gdrive_file_id}:`, error.message)
-          // For other errors, also mark as orphaned to be safe
-          orphanedRecords.push(shot)
-        }
-      }
-    }
-
-    const stats = {
-      total: angledShots.length,
-      valid: angledShots.length - orphanedRecords.length,
-      orphaned: orphanedRecords.length,
-      deleted: 0,
-    }
-
-    // Delete orphaned records if not dry run
-    if (!dryRun && orphanedRecords.length > 0) {
-      const idsToDelete = orphanedRecords.map(r => r.id)
-
-      const { error: deleteError } = await supabase
-        .from('angled_shots')
-        .delete()
-        .in('id', idsToDelete)
-
-      if (deleteError) {
-        return NextResponse.json(
-          {
-            error: 'Failed to delete orphaned records',
-            details: deleteError.message,
-            stats
-          },
-          { status: 500 }
-        )
-      }
-
-      stats.deleted = orphanedRecords.length
-    }
+    const totalOrphaned =
+      angledShotsResult.stats.orphaned + productImagesResult.stats.orphaned
+    const totalDeleted =
+      angledShotsResult.stats.deleted + productImagesResult.stats.deleted
 
     return NextResponse.json({
       message: dryRun
-        ? `Dry run complete - ${orphanedRecords.length} records would be deleted`
-        : `Cleanup complete - ${stats.deleted} records deleted`,
+        ? `Dry run complete - ${totalOrphaned} records would be deleted`
+        : `Cleanup complete - ${totalDeleted} records deleted`,
       dryRun,
-      stats,
-      orphanedRecords: orphanedRecords.map(r => ({
-        id: r.id,
-        angle_name: r.angle_name,
-        gdrive_file_id: r.gdrive_file_id,
-      })),
+      summary: {
+        totalOrphaned,
+        totalDeleted,
+      },
+      tables: {
+        angled_shots: {
+          stats: angledShotsResult.stats,
+          orphanedRecords: angledShotsResult.orphanedRecords,
+        },
+        product_images: {
+          stats: productImagesResult.stats,
+          orphanedRecords: productImagesResult.orphanedRecords,
+        },
+      },
     })
   } catch (error: any) {
     console.error('Cleanup error:', error)
