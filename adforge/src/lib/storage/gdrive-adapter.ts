@@ -78,7 +78,14 @@ export class GoogleDriveAdapter implements StorageAdapter {
       const fileName = path.split('/').pop()!
 
       // Convert file to stream
-      const buffer = file instanceof Buffer ? file : Buffer.from(await file.arrayBuffer())
+      let buffer: Buffer
+      if (file instanceof Buffer) {
+        buffer = file
+      } else {
+        // file is Blob (type assertion needed for TypeScript)
+        const arrayBuffer = await (file as Blob).arrayBuffer()
+        buffer = Buffer.from(arrayBuffer)
+      }
       const stream = Readable.from(buffer)
 
       // Upload file

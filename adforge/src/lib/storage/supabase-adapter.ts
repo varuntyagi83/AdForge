@@ -46,7 +46,7 @@ export class SupabaseAdapter implements StorageAdapter {
       } = this.supabase.storage.from(this.bucket).getPublicUrl(path)
 
       const fileSize =
-        file instanceof Buffer ? file.length : await file.size
+        file instanceof Buffer ? file.length : (file as Blob).size
 
       return {
         path,
