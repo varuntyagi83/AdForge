@@ -128,10 +128,10 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verify category belongs to user
+    // Verify category belongs to user and get slug
     const { data: category } = await supabase
       .from('categories')
-      .select('id')
+      .select('id, slug')
       .eq('id', categoryId)
       .eq('user_id', user.id)
       .single()
@@ -169,10 +169,10 @@ export async function POST(
       )
     }
 
-    // Verify product belongs to this category
+    // Verify product belongs to this category and get slug
     const { data: product } = await supabase
       .from('products')
-      .select('id')
+      .select('id, slug')
       .eq('id', productId)
       .eq('category_id', categoryId)
       .single()
@@ -185,9 +185,9 @@ export async function POST(
     const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '')
     const buffer = Buffer.from(base64Data, 'base64')
 
-    // Generate filename
+    // Generate filename using human-readable folder names (slugs)
     const fileExt = mimeType?.split('/')[1] || 'jpg'
-    const fileName = `${user.id}/${categoryId}/${productId}/${angleName}_${Date.now()}.${fileExt}`
+    const fileName = `${category.slug}/${product.slug}/angled-shots/${angleName}_${Date.now()}.${fileExt}`
 
     // Upload to storage
     const { data: uploadData, error: uploadError } = await supabase.storage
