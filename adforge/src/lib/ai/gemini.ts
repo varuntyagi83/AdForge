@@ -179,7 +179,11 @@ export async function generateAngledShots(
         const response = await generativeModel.generateContent(request)
         const generatedImage = response.response.candidates?.[0]?.content?.parts?.[0]
 
-        if (generatedImage && 'inlineData' in generatedImage) {
+        if (
+          generatedImage &&
+          'inlineData' in generatedImage &&
+          generatedImage.inlineData?.data
+        ) {
           // Successfully generated image
           const generatedBase64 = generatedImage.inlineData.data
           const generatedMimeType = generatedImage.inlineData.mimeType || 'image/jpeg'
