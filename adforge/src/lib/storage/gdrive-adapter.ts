@@ -117,8 +117,9 @@ export class GoogleDriveAdapter implements StorageAdapter {
         supportsAllDrives: true,
       })
 
-      // Get direct download link
-      const publicUrl = `https://drive.google.com/uc?export=download&id=${data.id}`
+      // Get direct image link (for embedding/viewing, not download)
+      // Using Google Drive thumbnail API for images
+      const publicUrl = `https://drive.google.com/thumbnail?id=${data.id}&sz=w2000`
 
       return {
         path,
