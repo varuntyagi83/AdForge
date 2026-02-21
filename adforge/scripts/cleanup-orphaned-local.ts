@@ -50,92 +50,135 @@ const auth = new google.auth.GoogleAuth({
 
 const drive = google.drive({ version: 'v3', auth })
 
-async function cleanupOrphanedMetadata(dryRun: boolean = true) {
-  console.log(`🔍 Scanning for orphaned metadata records...`)
-  console.log(`   Mode: ${dryRun ? 'DRY RUN (no deletions)' : 'LIVE (will delete)'}\n`)
+interface OrphanedRecord {
+  id: string
+  gdrive_file_id: string
+  display_name: string
+}
 
-  // Get all angled_shots with Google Drive files
-  const { data: angledShots, error: fetchError } = await supabase
-    .from('angled_shots')
-    .select('id, gdrive_file_id, angle_name, storage_provider')
+async function checkTableForOrphans(
+  tableName: string,
+  displayNameField: string,
+  dryRun: boolean
+): Promise<number> {
+  console.log(`\n📋 Checking ${tableName}...`)
+
+  // Get all records with Google Drive files
+  const { data: records, error: fetchError } = await supabase
+    .from(tableName)
+    .select('id, gdrive_file_id, storage_provider, ' + displayNameField)
     .eq('storage_provider', 'gdrive')
     .not('gdrive_file_id', 'is', null)
 
   if (fetchError) {
-    console.error('❌ Error fetching angled shots:', fetchError)
-    process.exit(1)
+    console.error(`❌ Error fetching ${tableName}:`, fetchError)
+    throw fetchError
   }
 
-  if (!angledShots || angledShots.length === 0) {
-    console.log('✅ No Google Drive records found to check')
-    return
+  if (!records || records.length === 0) {
+    console.log(`   No Google Drive records found`)
+    return 0
   }
 
-  console.log(`Found ${angledShots.length} Google Drive records to verify\n`)
+  console.log(`   Found ${records.length} Google Drive records to verify`)
 
-  const orphanedRecords: typeof angledShots = []
+  const orphanedRecords: OrphanedRecord[] = []
   let checkedCount = 0
 
   // Check each file
-  for (const shot of angledShots) {
+  for (const record of records) {
     checkedCount++
-    process.stdout.write(`\r   Checking ${checkedCount}/${angledShots.length}...`)
+    process.stdout.write(`\r   Checking ${checkedCount}/${records.length}...`)
 
     try {
       const response = await drive.files.get({
-        fileId: shot.gdrive_file_id!,
+        fileId: record.gdrive_file_id!,
         fields: 'id, trashed',
         supportsAllDrives: true,
       })
 
       // If file is trashed, mark as orphaned
       if (response.data.trashed) {
-        orphanedRecords.push(shot)
-        console.log(`\n   ❌ Trashed: ${shot.angle_name} (${shot.id})`)
+        orphanedRecords.push({
+          id: record.id,
+          gdrive_file_id: record.gdrive_file_id,
+          display_name: record[displayNameField] || 'Unknown',
+        })
+        console.log(`\n   ❌ Trashed: ${record[displayNameField]} (${record.id})`)
       }
     } catch (error: any) {
       // File not found or other errors - mark as orphaned
       if (error.code === 404 || error.status === 404) {
-        orphanedRecords.push(shot)
-        console.log(`\n   ❌ Not found: ${shot.angle_name} (${shot.id})`)
+        orphanedRecords.push({
+          id: record.id,
+          gdrive_file_id: record.gdrive_file_id,
+          display_name: record[displayNameField] || 'Unknown',
+        })
+        console.log(`\n   ❌ Not found: ${record[displayNameField]} (${record.id})`)
       } else {
-        console.error(`\n   ⚠️  Error checking ${shot.gdrive_file_id}:`, error.message)
+        console.error(`\n   ⚠️  Error checking ${record.gdrive_file_id}:`, error.message)
       }
     }
   }
 
-  console.log(`\n\n📊 Results:`)
-  console.log(`   Total records checked: ${angledShots.length}`)
-  console.log(`   ✅ Valid records: ${angledShots.length - orphanedRecords.length}`)
-  console.log(`   ❌ Orphaned records: ${orphanedRecords.length}`)
+  console.log(`\n   📊 Results:`)
+  console.log(`      Total checked: ${records.length}`)
+  console.log(`      ✅ Valid: ${records.length - orphanedRecords.length}`)
+  console.log(`      ❌ Orphaned: ${orphanedRecords.length}`)
 
   if (orphanedRecords.length === 0) {
-    console.log(`\n🎉 No orphaned records found! Database is clean.`)
-    return
+    return 0
   }
 
   if (dryRun) {
-    console.log(`\n⚠️  DRY RUN MODE - No deletions performed`)
-    console.log(`\nOrphaned records that would be deleted:`)
+    console.log(`\n   Orphaned records that would be deleted:`)
     orphanedRecords.forEach(record => {
-      console.log(`   - ${record.angle_name} (${record.id})`)
+      console.log(`      - ${record.display_name} (${record.id})`)
     })
-    console.log(`\nTo actually delete these records, run with --execute flag`)
   } else {
-    console.log(`\n🗑️  Deleting ${orphanedRecords.length} orphaned records...`)
+    console.log(`\n   🗑️  Deleting ${orphanedRecords.length} orphaned records...`)
 
     const idsToDelete = orphanedRecords.map(r => r.id)
     const { error: deleteError } = await supabase
-      .from('angled_shots')
+      .from(tableName)
       .delete()
       .in('id', idsToDelete)
 
     if (deleteError) {
-      console.error('❌ Error deleting orphaned records:', deleteError)
-      process.exit(1)
+      console.error(`   ❌ Error deleting orphaned records:`, deleteError)
+      throw deleteError
     }
 
-    console.log(`✅ Successfully deleted ${orphanedRecords.length} orphaned records`)
+    console.log(`   ✅ Successfully deleted ${orphanedRecords.length} orphaned records`)
+  }
+
+  return orphanedRecords.length
+}
+
+async function cleanupOrphanedMetadata(dryRun: boolean = true) {
+  console.log(`🔍 Scanning for orphaned metadata records...`)
+  console.log(`   Mode: ${dryRun ? 'DRY RUN (no deletions)' : 'LIVE (will delete)'}\n`)
+
+  let totalOrphaned = 0
+
+  // Check all tables with storage sync
+  try {
+    totalOrphaned += await checkTableForOrphans('angled_shots', 'angle_name', dryRun)
+    totalOrphaned += await checkTableForOrphans('product_images', 'file_name', dryRun)
+  } catch (error) {
+    console.error('❌ Error during cleanup:', error)
+    process.exit(1)
+  }
+
+  console.log(`\n\n📊 Overall Summary:`)
+  console.log(`   Total orphaned records: ${totalOrphaned}`)
+
+  if (totalOrphaned === 0) {
+    console.log(`\n🎉 No orphaned records found! Database is clean.`)
+  } else if (dryRun) {
+    console.log(`\n⚠️  DRY RUN MODE - No deletions performed`)
+    console.log(`\nTo actually delete these records, run with --execute flag`)
+  } else {
     console.log(`\n🎉 Database cleanup complete!`)
   }
 }
