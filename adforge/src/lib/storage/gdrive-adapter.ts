@@ -17,7 +17,7 @@ export class GoogleDriveAdapter implements StorageAdapter {
         client_email: process.env.GOOGLE_DRIVE_CLIENT_EMAIL,
         private_key: process.env.GOOGLE_DRIVE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
       },
-      scopes: ['https://www.googleapis.com/auth/drive.file'],
+      scopes: ['https://www.googleapis.com/auth/drive'],
     })
 
     this.drive = google.drive({ version: 'v3', auth })
@@ -31,6 +31,7 @@ export class GoogleDriveAdapter implements StorageAdapter {
   /**
    * Get or create a folder in Google Drive
    * Creates nested folder structure (e.g., product-images/user-id/product-id/)
+   * Supports both regular folders and Shared Drives
    */
   private async getOrCreateFolder(path: string): Promise<string> {
     const pathParts = path.split('/').filter(Boolean)
@@ -39,16 +40,18 @@ export class GoogleDriveAdapter implements StorageAdapter {
     let currentFolderId = this.folderId
 
     for (const folderName of folders) {
-      // Check if folder exists
+      // Check if folder exists (support Shared Drives)
       const { data } = await this.drive.files.list({
         q: `name='${folderName}' and '${currentFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
         fields: 'files(id, name)',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
       })
 
       if (data.files && data.files.length > 0) {
         currentFolderId = data.files[0].id!
       } else {
-        // Create folder
+        // Create folder (support Shared Drives)
         const { data: folder } = await this.drive.files.create({
           requestBody: {
             name: folderName,
@@ -56,6 +59,7 @@ export class GoogleDriveAdapter implements StorageAdapter {
             parents: [currentFolderId],
           },
           fields: 'id',
+          supportsAllDrives: true,
         })
         currentFolderId = folder.id!
       }
@@ -88,7 +92,7 @@ export class GoogleDriveAdapter implements StorageAdapter {
       }
       const stream = Readable.from(buffer)
 
-      // Upload file
+      // Upload file (support Shared Drives)
       const { data } = await this.drive.files.create({
         requestBody: {
           name: fileName,
@@ -100,15 +104,17 @@ export class GoogleDriveAdapter implements StorageAdapter {
           body: stream,
         },
         fields: 'id, name, size, webViewLink, webContentLink',
+        supportsAllDrives: true,
       })
 
-      // Make file publicly accessible
+      // Make file publicly accessible (support Shared Drives)
       await this.drive.permissions.create({
         fileId: data.id!,
         requestBody: {
           role: 'reader',
           type: 'anyone',
         },
+        supportsAllDrives: true,
       })
 
       // Get direct download link
@@ -119,6 +125,7 @@ export class GoogleDriveAdapter implements StorageAdapter {
         publicUrl,
         size: parseInt(data.size || '0'),
         mimeType: options?.contentType || 'application/octet-stream',
+        fileId: data.id!, // Include file ID for faster deletion
       }
     } catch (error) {
       console.error('Google Drive upload error:', error)
@@ -138,11 +145,12 @@ export class GoogleDriveAdapter implements StorageAdapter {
         throw new Error(`File not found: ${path}`)
       }
 
-      // Download file
+      // Download file (support Shared Drives)
       const { data } = await this.drive.files.get(
         {
           fileId,
           alt: 'media',
+          supportsAllDrives: true,
         },
         { responseType: 'arraybuffer' }
       )
@@ -156,17 +164,46 @@ export class GoogleDriveAdapter implements StorageAdapter {
 
   /**
    * Delete a file from Google Drive
+   * Can delete by path or by file ID
    */
-  async delete(path: string): Promise<void> {
+  async delete(pathOrFileId: string): Promise<void> {
     try {
-      const fileId = await this.findFileByPath(path)
+      let fileId: string | null = null
 
-      if (fileId) {
-        await this.drive.files.delete({ fileId })
+      // Check if input is a file ID (starts with 1 and contains no slashes) or a path
+      if (!pathOrFileId.includes('/') && pathOrFileId.length > 20) {
+        // Likely a file ID
+        fileId = pathOrFileId
+      } else {
+        // It's a path, need to find the file
+        fileId = await this.findFileByPath(pathOrFileId)
+      }
+
+      if (!fileId) {
+        console.warn(`File not found for deletion: ${pathOrFileId}`)
+        return
+      }
+
+      // Try to delete the file
+      try {
+        await this.drive.files.delete({
+          fileId,
+          supportsAllDrives: true,
+        })
+      } catch (deleteError: any) {
+        // If file not found during delete, it might already be deleted
+        if (deleteError.code === 404) {
+          console.warn(`File already deleted or not found: ${fileId}`)
+          return
+        }
+        throw deleteError
       }
     } catch (error) {
       console.error('Google Drive delete error:', error)
-      throw new Error(`Failed to delete from Google Drive: ${error}`)
+      // Don't throw error for 404s - file might already be deleted
+      if ((error as any).code !== 404) {
+        throw new Error(`Failed to delete from Google Drive: ${error}`)
+      }
     }
   }
 
@@ -202,11 +239,13 @@ export class GoogleDriveAdapter implements StorageAdapter {
       const fileName = pathParts.pop()!
       let currentFolderId = this.folderId
 
-      // Traverse folders
+      // Traverse folders (support Shared Drives)
       for (const folderName of pathParts) {
         const { data } = await this.drive.files.list({
           q: `name='${folderName}' and '${currentFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
           fields: 'files(id)',
+          supportsAllDrives: true,
+          includeItemsFromAllDrives: true,
         })
 
         if (!data.files || data.files.length === 0) {
@@ -216,10 +255,12 @@ export class GoogleDriveAdapter implements StorageAdapter {
         currentFolderId = data.files[0].id!
       }
 
-      // Find file
+      // Find file (support Shared Drives)
       const { data } = await this.drive.files.list({
         q: `name='${fileName}' and '${currentFolderId}' in parents and trashed=false`,
         fields: 'files(id)',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
       })
 
       return data.files && data.files.length > 0 ? data.files[0].id! : null

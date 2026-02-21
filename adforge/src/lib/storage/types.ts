@@ -14,6 +14,7 @@ export interface StorageFile {
   publicUrl: string
   size: number
   mimeType: string
+  fileId?: string // Provider-specific file ID (e.g., Google Drive file ID)
 }
 
 export interface StorageAdapter {
