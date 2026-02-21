@@ -52,12 +52,13 @@ export async function GET(
         *,
         angled_shot:angled_shot_id (
           id,
-          name,
-          angle_name
+          angle_name,
+          angle_description
         ),
         background:background_id (
           id,
-          name
+          name,
+          description
         )
       `)
       .eq('category_id', categoryId)

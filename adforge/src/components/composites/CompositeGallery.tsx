@@ -26,12 +26,13 @@ interface Composite {
   created_at: string
   angled_shot: {
     id: string
-    name: string
     angle_name: string
+    angle_description: string | null
   }
   background: {
     id: string
     name: string
+    description: string | null
   }
 }
 
@@ -182,7 +183,7 @@ export function CompositeGallery({
             <h3 className="font-medium line-clamp-1">{composite.name}</h3>
             <div className="text-xs text-muted-foreground space-y-0.5">
               <p className="line-clamp-1">
-                Shot: {composite.angled_shot?.name || 'Unknown'}
+                Shot: {composite.angled_shot?.angle_name || 'Unknown'}
               </p>
               <p className="line-clamp-1">
                 Background: {composite.background?.name || 'Unknown'}
