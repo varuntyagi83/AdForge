@@ -7,17 +7,17 @@ export const ANGLE_VARIATIONS = [
   {
     name: 'front',
     description: 'Front view, straight on',
-    prompt: 'Rotate the camera to face the product label directly head-on. The label text should be fully visible and centered. Keep the product upright and straight.',
+    prompt: 'The jar stands VERTICALLY UPRIGHT on the surface. Position the camera directly in front facing the product label head-on. The label text should be fully visible and centered. The jar remains perfectly vertical.',
   },
   {
     name: 'left_30deg',
     description: 'Left side, 30 degree angle',
-    prompt: 'Rotate the product 30 degrees counterclockwise (to the left). The left side edge should become visible while the front label remains partially readable. The product stays upright.',
+    prompt: 'Keep the jar standing VERTICALLY UPRIGHT on the surface. Move the camera position 30 degrees counterclockwise around the jar (imagine walking around to the left side of the jar). The left side edge should become visible while the front label remains partially readable. The jar must remain perfectly vertical and not tilted.',
   },
   {
     name: 'right_30deg',
     description: 'Right side, 30 degree angle',
-    prompt: 'Rotate the product 30 degrees clockwise (to the right). The right side edge should become visible while the front label remains partially readable. Imagine viewing the jar from the right side. The product stays upright.',
+    prompt: 'Keep the jar standing VERTICALLY UPRIGHT on the surface. Move the camera position 30 degrees clockwise around the jar (imagine walking around to the right side of the jar). The right side edge should become visible while the front label remains partially readable. The jar must remain perfectly vertical and not tilted.',
   },
   {
     name: 'top_45deg',
@@ -27,12 +27,12 @@ export const ANGLE_VARIATIONS = [
   {
     name: 'three_quarter_left',
     description: 'Three-quarter view from left',
-    prompt: 'Rotate the product about 45 degrees counterclockwise (to the left). Both the front label and the left side should be clearly visible. This is a classic product photography angle showing two faces of the container.',
+    prompt: 'Keep the jar standing VERTICALLY UPRIGHT on the surface. Move the camera position about 45 degrees counterclockwise around the jar. Both the front label and the left side should be clearly visible. This is a classic product photography angle showing two faces of the container. The jar remains perfectly vertical.',
   },
   {
     name: 'three_quarter_right',
     description: 'Three-quarter view from right',
-    prompt: 'Rotate the product about 45 degrees clockwise (to the right). Both the front label and the right side should be clearly visible. Imagine the camera positioned to the right front of the jar, seeing two sides at once.',
+    prompt: 'Keep the jar standing VERTICALLY UPRIGHT on the surface. Move the camera position about 45 degrees clockwise around the jar. Both the front label and the right side should be clearly visible. The camera is positioned to the right front of the jar, seeing two sides at once. The jar remains perfectly vertical.',
   },
   {
     name: 'isometric',
