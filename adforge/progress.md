@@ -113,11 +113,11 @@ AdForge is an AI-powered ad creative pipeline that automates the generation of p
 ## ✅ Phase 2: AI Image Generation - Angled Shots (COMPLETED ✅ Feb 21, 2026)
 
 ### 2.1 Google Gemini Integration (COMPLETED)
-- [x] Google Generative AI SDK setup (@google/generative-ai v0.21.0)
-- [x] Gemini 2.0 Flash model integration
-- [x] Image analysis for product understanding
+- [x] Google Gemini 3 Pro Image Preview model integration
+- [x] Image-to-image generation capabilities
 - [x] Prompt generation for angle variations using look_and_feel
-- [x] Error handling and proper async/await patterns
+- [x] Error handling and retry logic
+- [x] Base64 image encoding for API
 
 ### 2.2 Angled Shot Generation (COMPLETED)
 - [x] Product selection dropdown
@@ -129,26 +129,66 @@ AdForge is an AI-powered ad creative pipeline that automates the generation of p
 - [x] Save individual angles
 - [x] AI-powered generation using Gemini
 
-### 2.3 Storage & Management (COMPLETED)
-- [x] Angled-shots Supabase storage bucket
-- [x] Database schema alignment (product_images instead of product_assets)
-- [x] Migration 003 for schema updates
-- [x] Link generated images to products and source images
-- [x] Angled shots gallery view with cards
-- [x] Delete functionality for saved angles
-- [x] Public URL generation for image display
+### 2.3 Google Drive Migration (COMPLETED ✅ Feb 21, 2026)
+- [x] Google Drive API integration
+- [x] Service account setup and authentication
+- [x] Storage adapter architecture (pluggable storage system)
+- [x] Migrated from Supabase Storage to Google Drive
+- [x] Folder structure: `/AdForge Assets/product-images/user-id/product-id/`
+- [x] Automatic folder creation with proper permissions
+- [x] File metadata tracking (gdrive_file_id, storage_url, storage_provider)
+- [x] Thumbnail API URLs for proper image display
+- [x] Removed 8 unused Supabase Storage buckets
+
+**Storage Adapter:**
+- `GoogleDriveAdapter` - Complete Drive integration
+- `deleteFile()` - Multi-storage deletion support
+- `uploadFile()` - Abstracted upload interface
+
+### 2.4 Storage Sync System (COMPLETED ✅ Feb 21, 2026)
+- [x] 3-layer sync architecture
+- [x] Database triggers for automatic cleanup queueing
+- [x] Deletion queue table with retry logic
+- [x] Cron job for processing deletion queue (every 5 minutes)
+- [x] Reconciliation API for manual sync
+- [x] Cleanup scripts for trashed file metadata
+- [x] Migration 006 - Deletion queue and triggers
+
+**Deletion Scenarios Covered:**
+1. UI Delete → Both Drive & DB deleted immediately ✅
+2. Manual Drive Delete → Run reconciliation API ⚠️
+3. Drive Trash → Run cleanup script 🗑️
+4. Manual DB Delete → Queued for Drive deletion 🔄
+
+**Cleanup Tools:**
+- `scripts/cleanup-orphaned-local.ts` - Direct DB/Drive cleanup
+- `scripts/cleanup-orphaned-metadata.ts` - API-based cleanup
+- `/api/admin/cleanup-orphaned-metadata` - Admin endpoint
+- `/api/admin/process-deletion-queue` - Cron endpoint
+
+### 2.5 UI Improvements (COMPLETED ✅ Feb 21, 2026)
+- [x] Angled shots display with AngledShotCard component
+- [x] AngledShotsList with product filtering
+- [x] Real category counts (products & angled shots)
+- [x] Fixed image loading states
+- [x] Download and view full size functionality
+- [x] Proper Google Drive thumbnail URLs
+- [x] Removed "Coming in Phase 2" placeholders
 
 **API Endpoints:**
 - `POST /api/categories/[id]/angled-shots/generate` - Generate angles using AI
 - `GET /api/categories/[id]/angled-shots` - List angled shots (with product filter)
 - `POST /api/categories/[id]/angled-shots` - Save generated angle
-- `DELETE /api/categories/[id]/angled-shots/[angleId]` - Delete angle
+- `DELETE /api/categories/[id]/angled-shots/[angleId]` - Delete angle (synced deletion)
+- `POST /api/categories/[id]/angled-shots/sync` - Reconciliation API
+- `POST /api/admin/cleanup-orphaned-metadata` - Cleanup trashed files
+- `POST /api/admin/process-deletion-queue` - Process deletion queue
 
 **Components Created:**
-- `AngledShotsPage` - Complete workflow for angle generation
-- `analyzeProductImage()` - AI image analysis
-- `generateAngledShots()` - Multi-angle generation
-- `generateAnglePrompt()` - Detailed prompt creation
+- `AngledShotCard` - Individual shot display with actions
+- `AngledShotsList` - Gallery view with filtering
+- `generateAngledShots()` - Gemini integration
+- `GoogleDriveAdapter` - Storage abstraction
 
 ---
 
@@ -241,6 +281,33 @@ AdForge is an AI-powered ad creative pipeline that automates the generation of p
    - Solution: Made repository public
    - Status: ✅ Auto-deployment now working
 
+### Storage & Sync Issues (Fixed: Feb 21, 2026)
+5. **UI Showing "Coming in Phase 2"** (Fixed: Commit `f0af9d5`)
+   - Problem: No UI for viewing generated angled shots
+   - Solution: Created AngledShotCard and AngledShotsList components
+
+6. **Storage Sync Inconsistency** (Fixed: Commit `9ed5440`)
+   - Problem: Deletions in one system (UI/Drive/Supabase) not synced across all
+   - Solution: Implemented 3-layer sync system with deletion queue and triggers
+
+7. **Images Stuck on "Loading..." - Bucket Not Found** (Fixed: Commit `6d9a3ca`)
+   - Problem: GET endpoint generating Supabase Storage URLs for Drive files
+   - Solution: Check storage_provider and use storage_url from database
+
+8. **Category Counts Showing Zero** (Fixed: Commit `dac72c4`)
+   - Problem: CategoryCard had hardcoded "0 products" and "0 assets"
+   - Solution: Added count fetching to GET /api/categories endpoint
+
+9. **Images Downloading Instead of Displaying** (Fixed: Commit `6c95277`)
+   - Problem: Google Drive URLs using export=download format
+   - Solution: Changed to thumbnail API format (`/thumbnail?id={ID}&sz=w2000`)
+   - Fixed 42 existing database records with script
+
+10. **Orphaned Metadata After Trash** (Fixed: Commit `0978f60`)
+    - Problem: Files in Google Drive trash still had Supabase metadata
+    - Solution: Created cleanup scripts and API endpoint
+    - Result: Successfully cleaned 28 orphaned records
+
 ### Configuration Issues
 1. **Root Page Redirect** (Fixed: Feb 20, 2026)
    - Moved redirect from component to `next.config.ts`
@@ -284,12 +351,13 @@ AdForge is an AI-powered ad creative pipeline that automates the generation of p
 ### Backend
 - **Database:** Supabase (PostgreSQL)
 - **Auth:** Supabase Auth
-- **Storage:** Supabase Storage
+- **Storage:** Google Drive (via Service Account)
 - **API:** Next.js API Routes
+- **Cron Jobs:** Vercel Cron (deletion queue processing)
 
 ### AI Services
-- **Image Analysis:** Google Gemini (Nano Banana Pro)
-- **Copy Generation:** OpenAI GPT-4o
+- **Image Generation:** Google Gemini 3 Pro Image Preview (image-to-image)
+- **Copy Generation:** OpenAI GPT-4o (Planned - Phase 4)
 
 ### Deployment
 - **Platform:** Vercel
@@ -317,8 +385,19 @@ AdForge is an AI-powered ad creative pipeline that automates the generation of p
    - id, product_id, file_name, file_path, file_size, is_primary
    - RLS: Users can only access images for their products
 
-5. **angled_shots** (Phase 2)
-   - id, product_id, angle_name, file_path, prompt_used
+5. **angled_shots** (Phase 2 - COMPLETED)
+   - id, product_id, product_image_id, angle_name, description
+   - storage_provider ('gdrive' or 'supabase'), storage_path, storage_url
+   - gdrive_file_id (Google Drive file ID for fast deletion)
+   - prompt_used, created_at
+
+5b. **deletion_queue** (Phase 2 - Storage Sync)
+   - id, resource_type, resource_id, user_id
+   - storage_provider, storage_path, storage_url, gdrive_file_id
+   - status ('pending', 'completed', 'failed')
+   - retry_count, max_retries, error_message
+   - created_at, processed_at, metadata (JSONB)
+   - Triggers: Auto-queues deletions from angled_shots, product_images
 
 6. **backgrounds** (Phase 3)
    - id, category_id, style_name, file_path, prompt_used
@@ -332,13 +411,25 @@ AdForge is an AI-powered ad creative pipeline that automates the generation of p
 9. **final_assets** (Phase 6)
    - id, composite_id, copy_doc_id, layout_type, file_path
 
-### Storage Buckets
-1. **brand-assets** - User uploaded brand assets
-2. **product-images** - Product photography
-3. **angled-shots** - AI-generated angle variations
-4. **backgrounds** - AI-generated backgrounds
-5. **composites** - Product + background composites
-6. **final-assets** - Final ad creatives
+### Storage Systems
+
+**Google Drive** (Primary - Phase 2):
+- All images stored in shared Google Drive folder
+- Folder: `/AdForge Assets/product-images/{user_id}/{product_id}/`
+- Thumbnail API URLs for fast, embeddable images
+- Service account with domain-wide delegation
+- Automatic folder creation with proper permissions
+
+**Supabase Storage** (Legacy - Removed):
+- ❌ 8 unused buckets removed (brand-assets, product-images, angled-shots, etc.)
+- Database now stores Google Drive URLs and file IDs
+- storage_provider field tracks which system stores each file
+
+**Database Fields for Storage:**
+- `storage_provider`: 'gdrive' or 'supabase'
+- `storage_path`: File path in storage system
+- `storage_url`: Public URL (Google Drive thumbnail API)
+- `gdrive_file_id`: Drive file ID for deletion/updates
 
 ---
 
@@ -372,11 +463,25 @@ AdForge is an AI-powered ad creative pipeline that automates the generation of p
 
 ## 📝 Notes
 
+### General
 - Repository is now public for automatic Vercel deployments
 - Supabase redirect URLs configured for both local and production
 - All RLS policies tested and working
 - Product CRUD uses consistent naming: `[id]` for category, `[productId]` for product
 - Email confirmation flow fully functional
+
+### Storage & Sync (Feb 21, 2026)
+- **Migrated to Google Drive** - All new images stored in Drive
+- **Cleanup System** - Run `npx tsx scripts/cleanup-orphaned-local.ts --execute` weekly
+- **Deletion Queue** - Automatic cleanup via cron job every 5 minutes
+- **Storage Adapter Pattern** - Pluggable storage system for future flexibility
+- **28 Orphaned Records Cleaned** - First successful cleanup run removed trashed file metadata
+- **CRON_SECRET** - Set in Vercel env vars: `450b64484cf23ccc927f8a2354fb5b78ba120f9f48b1c448887283bc6ac08eb0`
+
+### Documentation
+- Complete storage sync documentation in `docs/STORAGE_SYNC.md`
+- Updated README with cleanup instructions
+- All deletion scenarios documented with test procedures
 
 ---
 
