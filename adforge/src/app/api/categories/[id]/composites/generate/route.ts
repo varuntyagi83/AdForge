@@ -36,6 +36,22 @@ export async function POST(
       return NextResponse.json({ error: 'Category not found' }, { status: 404 })
     }
 
+    // Fetch template for this category (to get safe zones)
+    const { data: template } = await supabase
+      .from('templates')
+      .select('id, name, template_data')
+      .eq('category_id', categoryId)
+      .single()
+
+    // Extract safe zones from template (optional - category may not have template yet)
+    let safeZones: any[] = []
+    if (template && template.template_data) {
+      safeZones = template.template_data.safe_zones || []
+      console.log(`Found ${safeZones.length} safe zones in template: ${template.name}`)
+    } else {
+      console.log('No template found for category, composites will be generated without safe zone constraints')
+    }
+
     // Get request body
     const body = await request.json()
     const { mode = 'selected', pairs = [], userPrompt } = body
@@ -219,14 +235,15 @@ export async function POST(
         )
         const backgroundMimeType = backgroundBlob.type || 'image/jpeg'
 
-        // Generate composite using Gemini
+        // Generate composite using Gemini (with template safe zones if available)
         const composite = await generateComposite(
           `data:${angledShotMimeType};base64,${angledShotBase64}`,
           angledShotMimeType,
           `data:${backgroundMimeType};base64,${backgroundBase64}`,
           backgroundMimeType,
           userPrompt,
-          category.look_and_feel || undefined
+          category.look_and_feel || undefined,
+          safeZones.length > 0 ? safeZones : undefined
         )
 
         results.push({

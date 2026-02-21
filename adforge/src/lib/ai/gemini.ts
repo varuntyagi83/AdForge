@@ -323,7 +323,16 @@ export async function generateComposite(
   backgroundImageData: string,
   backgroundImageMimeType: string,
   userPrompt?: string,
-  lookAndFeel?: string
+  lookAndFeel?: string,
+  safeZones?: Array<{
+    id: string
+    name: string
+    x: number
+    y: number
+    width: number
+    height: number
+    type: 'safe' | 'restricted'
+  }>
 ): Promise<{
   promptUsed: string
   imageData: string
@@ -342,13 +351,43 @@ export async function generateComposite(
       } as any,
     })
 
+    // Build safe zone instructions if provided
+    let safeZoneInstructions = ''
+    if (safeZones && safeZones.length > 0) {
+      const productSafeZone = safeZones.find(z => z.type === 'safe' && z.name.toLowerCase().includes('product'))
+      const restrictedZones = safeZones.filter(z => z.type === 'restricted')
+
+      if (productSafeZone) {
+        safeZoneInstructions += `\n🎯 PRODUCT PLACEMENT ZONE (CRITICAL):
+Position the product within these coordinates on a 1080x1080 canvas:
+- Left edge: ${productSafeZone.x}% from left (${Math.round(productSafeZone.x * 10.8)}px)
+- Top edge: ${productSafeZone.y}% from top (${Math.round(productSafeZone.y * 10.8)}px)
+- Width: ${productSafeZone.width}% (${Math.round(productSafeZone.width * 10.8)}px)
+- Height: ${productSafeZone.height}% (${Math.round(productSafeZone.height * 10.8)}px)
+
+The ENTIRE product must fit within this zone. Do not let any part of the product extend outside these boundaries.\n`
+      }
+
+      if (restrictedZones.length > 0) {
+        safeZoneInstructions += `\n⚠️ RESTRICTED ZONES (DO NOT PLACE PRODUCT HERE):
+The following areas are restricted - do NOT place the product in these zones:\n`
+        restrictedZones.forEach(zone => {
+          safeZoneInstructions += `- ${zone.name}: ${zone.x}% to ${zone.x + zone.width}% from left, ${zone.y}% to ${zone.y + zone.height}% from top\n`
+        })
+      }
+
+      safeZoneInstructions += '\nThese zones are defined by brand guidelines and MUST be respected for compliance.\n'
+    }
+
     // Build the composite generation prompt
     const prompt = `Compose these two images into a single professional product photograph:
 
 Image 1 (Product): This is the product that needs to be placed in the scene.
 Image 2 (Background): This is the background scene/environment.
 
-${userPrompt ? `USER INSTRUCTION: ${userPrompt}\n\n` : ''}${lookAndFeel ? `STYLE GUIDELINE: ${lookAndFeel}\n\n` : ''}CRITICAL INSTRUCTIONS:
+${userPrompt ? `USER INSTRUCTION: ${userPrompt}\n\n` : ''}${lookAndFeel ? `STYLE GUIDELINE: ${lookAndFeel}\n\n` : ''}${safeZoneInstructions}
+
+CRITICAL INSTRUCTIONS:
 
 PRESERVE EXACTLY (DO NOT CHANGE):
 ✓ Product appearance: Keep the EXACT labels, text, branding, colors, and shape
@@ -357,12 +396,13 @@ PRESERVE EXACTLY (DO NOT CHANGE):
 ✓ Background setting: Preserve the environment, mood boxes, objects as-is
 
 WHAT YOU SHOULD DO:
-✓ Place the product NATURALLY in the background scene ${userPrompt ? `(following: ${userPrompt})` : ''}
+✓ ${safeZones && safeZones.length > 0 ? 'POSITION THE PRODUCT WITHIN THE SPECIFIED SAFE ZONE - This is the most important requirement!' : 'Place the product NATURALLY in the background scene'}
+✓ ${userPrompt ? `Follow user instruction: ${userPrompt}` : 'Position the product naturally in the scene'}
 ✓ Match the product's lighting to the background's lighting
 ✓ Add natural shadows and reflections where the product touches surfaces
 ✓ Make it look like the product was photographed IN that background, not pasted on
 ✓ Adjust depth of field to make the composition feel cohesive
-✓ Scale the product appropriately for the scene
+✓ Scale the product appropriately for the scene ${safeZones ? '(while keeping it within the safe zone)' : ''}
 
 WHAT YOU MUST NOT DO:
 ✗ Do NOT alter the product's labels, text, or branding
