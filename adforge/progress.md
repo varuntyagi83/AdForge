@@ -110,26 +110,45 @@ AdForge is an AI-powered ad creative pipeline that automates the generation of p
 
 ---
 
-## 📋 Phase 2: AI Image Generation - Angled Shots (PLANNED)
+## ✅ Phase 2: AI Image Generation - Angled Shots (COMPLETED ✅ Feb 21, 2026)
 
-### 2.1 Google Gemini Integration
-- [ ] Nano Banana Pro API setup
-- [ ] Image analysis for product understanding
-- [ ] Prompt generation for angle variations
-- [ ] Error handling and rate limiting
+### 2.1 Google Gemini Integration (COMPLETED)
+- [x] Google Generative AI SDK setup (@google/generative-ai v0.21.0)
+- [x] Gemini 2.0 Flash model integration
+- [x] Image analysis for product understanding
+- [x] Prompt generation for angle variations using look_and_feel
+- [x] Error handling and proper async/await patterns
 
-### 2.2 Angled Shot Generation
-- [ ] Select product for angle generation
-- [ ] Generate 5-7 angle variations
-- [ ] Preview generated angles
-- [ ] Save selected angles
-- [ ] Regenerate individual angles
+### 2.2 Angled Shot Generation (COMPLETED)
+- [x] Product selection dropdown
+- [x] Product image selection from existing uploads
+- [x] 7 predefined angle variations (front, left_30deg, right_30deg, top_45deg, three_quarter_left, three_quarter_right, isometric)
+- [x] Custom angle selection (checkboxes)
+- [x] Generate button with loading states
+- [x] Preview generated angles in grid
+- [x] Save individual angles
+- [x] AI-powered generation using Gemini
 
-### 2.3 Storage & Management
-- [ ] Angled shots storage structure
-- [ ] Link generated images to products
-- [ ] Angled shots gallery view
-- [ ] Download generated images
+### 2.3 Storage & Management (COMPLETED)
+- [x] Angled-shots Supabase storage bucket
+- [x] Database schema alignment (product_images instead of product_assets)
+- [x] Migration 003 for schema updates
+- [x] Link generated images to products and source images
+- [x] Angled shots gallery view with cards
+- [x] Delete functionality for saved angles
+- [x] Public URL generation for image display
+
+**API Endpoints:**
+- `POST /api/categories/[id]/angled-shots/generate` - Generate angles using AI
+- `GET /api/categories/[id]/angled-shots` - List angled shots (with product filter)
+- `POST /api/categories/[id]/angled-shots` - Save generated angle
+- `DELETE /api/categories/[id]/angled-shots/[angleId]` - Delete angle
+
+**Components Created:**
+- `AngledShotsPage` - Complete workflow for angle generation
+- `analyzeProductImage()` - AI image analysis
+- `generateAngledShots()` - Multi-angle generation
+- `generateAnglePrompt()` - Detailed prompt creation
 
 ---
 
