@@ -30,18 +30,40 @@ AdForge is an end-to-end AI-powered ad creative generation platform. Users uploa
 
 ## Google Drive Storage Structure
 
-**All assets stored in Google Drive** under `/AdForge Assets/` shared folder with organized subfolders:
+**All assets stored in Google Drive** under the AdForge Shared Drive with organized hierarchy:
 
+### Phase 1 & 2 Structure (Product Images & Angled Shots)
+```
+AdForge Shared Drive/
+└── {category-slug}/                              (e.g., gummy-bear)
+    └── {product-slug}/                           (e.g., vitamin-c-gummies)
+        └── product-images/                       (container for all product images)
+            ├── {image-filename}.jpg              (user-uploaded high-res images)
+            ├── {image-filename}-angled-shots/    (AI variations of this specific image)
+            │   ├── left_30deg_{timestamp}.jpg
+            │   ├── front_{timestamp}.jpg
+            │   └── right_45deg_{timestamp}.jpg
+            ├── {another-image}.jpg               (another uploaded image)
+            └── {another-image}-angled-shots/     (its AI variations)
+                └── ...
+```
+
+### Full Structure (All Phases)
 | Folder Path | Scope | Purpose |
 |-------------|-------|---------|
 | `{category-slug}/{product-slug}/product-images/` | Per product | Raw product images uploaded by user |
-| `{category-slug}/{product-slug}/angled-shots/` | Per product | AI-generated angle variations of products |
+| `{category-slug}/{product-slug}/product-images/{image-name}-angled-shots/` | Per image | AI-generated angle variations of specific product image |
 | `{category-slug}/backgrounds/` | Per category | AI-generated backgrounds matching category look & feel |
 | `{category-slug}/composites/` | Per category | Composites: angled product + background |
 | `{category-slug}/copy/` | Per category | AI-generated marketing copy (hooks, CTAs, text) |
 | `{category-slug}/guidelines/` | Per category | User-uploaded design guidelines, safe zones |
 | `{category-slug}/final-assets/` | Per category | Fully composed creatives (image + text + layout) |
 | `brand-assets/` | Global | Logos, brand fonts, universal elements |
+
+**Storage Path Examples:**
+- Original image: `gummy-bear/vitamin-c-gummies/product-images/vitamin-c-gummies.jpg`
+- Angled shot: `gummy-bear/vitamin-c-gummies/product-images/vitamin-c-gummies-angled-shots/left_30deg_1234567.jpg`
+- Background: `gummy-bear/backgrounds/tropical-leaves-warm_1234568.jpg`
 
 **Storage Sync System (3-Layer Architecture):**
 - **Layer 1:** UI operations (upload, delete, view)
@@ -56,6 +78,7 @@ AdForge is an end-to-end AI-powered ad creative generation platform. Users uploa
 
 **Human-Readable Folder Names:**
 - Uses slugs from category and product names (e.g., `gummy-bear/vitamin-c-gummies/`)
+- Angled shots organized per original image (e.g., `vitamin-c-gummies-angled-shots/`)
 - NOT UUIDs - makes Drive folders browsable and organized
 
 ---

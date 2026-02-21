@@ -182,13 +182,32 @@ export async function POST(
       return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     }
 
+    // Get the original product image to determine subfolder name
+    const { data: productImage } = await supabase
+      .from('product_images')
+      .select('id, file_name')
+      .eq('id', productImageId)
+      .eq('product_id', productId)
+      .single()
+
+    if (!productImage) {
+      return NextResponse.json(
+        { error: 'Product image not found' },
+        { status: 404 }
+      )
+    }
+
+    // Extract filename without extension for the angled-shots subfolder
+    const imageNameWithoutExt = productImage.file_name.replace(/\.[^/.]+$/, '')
+
     // Convert base64 to buffer
     const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '')
     const buffer = Buffer.from(base64Data, 'base64')
 
-    // Generate filename using human-readable folder names (slugs)
+    // Generate filename using the new folder structure:
+    // {category}/{product}/product-images/{image-name}-angled-shots/{angle}_{timestamp}.{ext}
     const fileExt = mimeType?.split('/')[1] || 'jpg'
-    const fileName = `${category.slug}/${product.slug}/angled-shots/${angleName}_${Date.now()}.${fileExt}`
+    const fileName = `${category.slug}/${product.slug}/product-images/${imageNameWithoutExt}-angled-shots/${angleName}_${Date.now()}.${fileExt}`
 
     // Upload to Google Drive
     const storageFile = await uploadFile(buffer, fileName, {
