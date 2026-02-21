@@ -114,6 +114,13 @@ async function testCompositeGeneration() {
     console.log('\n\n3️⃣  Testing: Backgrounds Availability')
     console.log('-'.repeat(70))
 
+    if (!category) {
+      console.log('   ❌ Cannot test backgrounds - category not found')
+      testsFail++
+      results.push('❌ Background test skipped')
+      process.exit(1)
+    }
+
     const bgResponse = await supabase
       .from('backgrounds')
       .select('*', { count: 'exact' })

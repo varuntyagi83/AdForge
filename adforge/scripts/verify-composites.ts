@@ -17,6 +17,11 @@ async function verify() {
     .eq('slug', 'gummy-bear')
     .single()
 
+  if (!category) {
+    console.log('\n❌ Gummy Bear category not found')
+    return
+  }
+
   const { data: composites, count } = await supabase
     .from('composites')
     .select(`
@@ -33,7 +38,7 @@ async function verify() {
   console.log(`\n📊 Gummy Bear Composites in Database: ${count}\n`)
   composites?.forEach((comp, idx) => {
     console.log(`${idx + 1}. ${comp.slug}`)
-    console.log(`   Angle: ${comp.angled_shots.angle_name}`)
+    console.log(`   Angle: ${(comp.angled_shots as any).angle_name}`)
     console.log(`   Storage: ${comp.storage_path}\n`)
   })
 }

@@ -51,6 +51,10 @@ async function generateAllComposites() {
       .eq('category_id', category.id)
       .order('angle_name')
 
+    if (!angledShots || angledShots.length === 0) {
+      throw new Error('No angled shots found')
+    }
+
     console.log(`📸 Found ${angledShots.length} angled shots:`)
     angledShots.forEach((s, i) => console.log(`   ${i+1}. ${s.angle_name}`))
 
@@ -82,7 +86,8 @@ async function generateAllComposites() {
     const savedComposites = []
 
     // Generate composites for ALL angled shots
-    for (const [idx, shot] of angledShots.entries()) {
+    for (let idx = 0; idx < angledShots.length; idx++) {
+      const shot = angledShots[idx]
       console.log(`\n[${idx+1}/${angledShots.length}] ${shot.angle_name}`)
       console.log('-'.repeat(40))
 
