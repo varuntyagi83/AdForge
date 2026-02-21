@@ -68,7 +68,15 @@ async function checkTableForOrphans(
     .from(tableName)
     .select('id, gdrive_file_id, storage_provider, ' + displayNameField)
     .eq('storage_provider', 'gdrive')
-    .not('gdrive_file_id', 'is', null)
+    .not('gdrive_file_id', 'is', null) as {
+      data: Array<{
+        id: string
+        gdrive_file_id: string
+        storage_provider: string
+        [key: string]: any
+      }> | null
+      error: any
+    }
 
   if (fetchError) {
     console.error(`❌ Error fetching ${tableName}:`, fetchError)
