@@ -130,12 +130,11 @@ export function CopyGenerationForm({
 
           <div>
             <Label htmlFor="tone">Tone (Optional)</Label>
-            <Select value={tone} onValueChange={setTone}>
+            <Select value={tone || undefined} onValueChange={setTone}>
               <SelectTrigger id="tone">
                 <SelectValue placeholder="Select tone..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Default</SelectItem>
                 <SelectItem value="professional">Professional</SelectItem>
                 <SelectItem value="casual">Casual</SelectItem>
                 <SelectItem value="playful">Playful</SelectItem>
