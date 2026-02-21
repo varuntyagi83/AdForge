@@ -192,29 +192,65 @@ AdForge is an AI-powered ad creative pipeline that automates the generation of p
 
 ---
 
-## 📋 Phase 3: Background & Composite Generation (PLANNED)
+## 🔄 Phase 3: Background & Composite Generation (IN PROGRESS - Feb 21, 2026)
 
 **⚠️ CRITICAL:** All asset types MUST implement the same storage sync system as angled_shots (see `docs/STORAGE_SYNC_REQUIREMENTS.md`)
 
-### 3.1 Background Generation
-- [ ] Style extraction from category look & feel
-- [ ] Background prompt generation
-- [ ] Multiple background variations
-- [ ] Background library per category
+### 3.1 Database & Backend (COMPLETED ✅)
+- [x] Migration 009 - backgrounds table with full storage sync
+- [x] Migration 010 - composites table with full storage sync
+- [x] Migration 011 - angled_shots storage sync fields (gdrive support)
+- [x] Google Drive folder structure fixes (human-readable names)
+- [x] Frontend image display fixes (use API public_url)
+- [x] Cleanup scripts updated for new tables
+
+### 3.2 Background Generation Backend (COMPLETED ✅ Feb 21, 2026)
+- [x] `generateBackgrounds()` AI function in gemini.ts
+- [x] Category look_and_feel integration
+- [x] Support for style reference images
+- [x] Multiple background variations (customizable count)
+- [x] **Storage sync:** Google Drive integration ✅
+- [x] **Storage sync:** Database triggers for deletion queue ✅
+- [x] **Storage sync:** Cleanup scripts support ✅
+- [x] **Storage sync:** Thumbnail API URLs ✅
+
+**API Endpoints:**
+- `POST /api/categories/[id]/backgrounds/generate` - Generate backgrounds using Gemini AI
+- `GET /api/categories/[id]/backgrounds` - List backgrounds for category
+- `POST /api/categories/[id]/backgrounds` - Save generated background to Google Drive
+- `DELETE /api/categories/[id]/backgrounds/[backgroundId]` - Delete background (synced deletion)
+
+### 3.3 Background Generation UI (PENDING)
+- [ ] Background generation page/tab
+- [ ] Style input and reference image upload
+- [ ] Background count selection
+- [ ] Preview generated backgrounds
+- [ ] Save individual backgrounds
+- [ ] Backgrounds gallery view
+
+### 3.4 Composite Creation Backend (PENDING)
+- [ ] `generateComposites()` AI function
+- [ ] Product × background compositing logic
+- [ ] Multiple composite variations
 - [ ] **Storage sync:** Google Drive integration
 - [ ] **Storage sync:** Database triggers for deletion queue
 - [ ] **Storage sync:** Cleanup scripts support
 - [ ] **Storage sync:** Thumbnail API URLs
 
-### 3.2 Composite Creation
-- [ ] Product + background compositing
-- [ ] Multiple composite variations
-- [ ] Composites gallery
-- [ ] Regeneration options
-- [ ] **Storage sync:** Google Drive integration
-- [ ] **Storage sync:** Database triggers for deletion queue
-- [ ] **Storage sync:** Cleanup scripts support
-- [ ] **Storage sync:** Thumbnail API URLs
+**API Endpoints (PENDING):**
+- `POST /api/categories/[id]/composites/generate` - Generate composites
+- `GET /api/categories/[id]/composites` - List composites
+- `POST /api/categories/[id]/composites` - Save generated composite
+- `DELETE /api/categories/[id]/composites/[compositeId]` - Delete composite
+
+### 3.5 Composite Creation UI (PENDING)
+- [ ] Composite generation page/tab
+- [ ] Angled shot selection
+- [ ] Background selection
+- [ ] Generate button with loading states
+- [ ] Preview composites grid
+- [ ] Save individual composites
+- [ ] Composites gallery view
 
 ---
 
@@ -335,6 +371,24 @@ AdForge is an AI-powered ad creative pipeline that automates the generation of p
     - Solution: Created cleanup scripts and API endpoint
     - Result: Successfully cleaned 28 orphaned records
 
+11. **Google Drive UUID Folders Instead of Human-Readable Names** (Fixed: Feb 21, 2026)
+    - Problem: Files stored in UUID-named folders (e.g., `00d3f3b1-9da5-44ac-b5b1-fcbd50039273`)
+    - Solution: Implemented slug-based folder structure
+    - Before: `product-images/gummy-bear-test/{UUID}/angled-shots/`
+    - After: `gummy-bear/vitamin-c-gummies/product-images/vitamin-c-gummies-angled-shots/`
+    - Result: All 7 angled shots reorganized, human-readable folder names
+    - Scripts: `fix-gdrive-folder-structure.ts`, `reorganize-gdrive-structure.ts`
+    - Commits: `dd5b12a`, `caad33d`
+
+12. **Frontend Images Not Displaying from Google Drive** (Fixed: Feb 21, 2026)
+    - Problem: Frontend components ignored `public_url` from API, generated wrong Supabase URLs
+    - Root Cause: `ProductImageGallery` and `ProductCard` bypassed API and generated own URLs
+    - Solution: Components now use `public_url` field from API response
+    - Fixed Components: `ProductImageGallery.tsx`, `ProductCard.tsx`
+    - Added: Error handlers with fallback placeholders
+    - Verified: All 8 files have correct Google Drive permissions (200 OK)
+    - Commit: `81d2b83`
+
 ### Configuration Issues
 1. **Root Page Redirect** (Fixed: Feb 20, 2026)
    - Moved redirect from component to `next.config.ts`
@@ -412,11 +466,13 @@ AdForge is an AI-powered ad creative pipeline that automates the generation of p
    - id, product_id, file_name, file_path, file_size, is_primary
    - RLS: Users can only access images for their products
 
-5. **angled_shots** (Phase 2 - COMPLETED)
-   - id, product_id, product_image_id, angle_name, description
+5. **angled_shots** (Phase 2 - COMPLETED, Updated Phase 3)
+   - id, product_id, product_image_id, category_id, user_id
+   - angle_name, angle_description, prompt_used
    - storage_provider ('gdrive' or 'supabase'), storage_path, storage_url
    - gdrive_file_id (Google Drive file ID for fast deletion)
-   - prompt_used, created_at
+   - metadata (JSONB), created_at
+   - Migration 011: Added storage sync fields
 
 5b. **deletion_queue** (Phase 2 - Storage Sync)
    - id, resource_type, resource_id, user_id
@@ -424,13 +480,23 @@ AdForge is an AI-powered ad creative pipeline that automates the generation of p
    - status ('pending', 'completed', 'failed')
    - retry_count, max_retries, error_message
    - created_at, processed_at, metadata (JSONB)
-   - Triggers: Auto-queues deletions from angled_shots, product_images
+   - Triggers: Auto-queues deletions from angled_shots, product_images, backgrounds, composites
 
-6. **backgrounds** (Phase 3)
-   - id, category_id, style_name, file_path, prompt_used
+6. **backgrounds** (Phase 3 - COMPLETED)
+   - id, category_id, user_id, name, slug, description
+   - prompt_used
+   - storage_provider ('gdrive'), storage_path, storage_url
+   - gdrive_file_id (Google Drive file ID for fast deletion)
+   - metadata (JSONB), created_at
+   - Migration 009: Full storage sync implementation
 
-7. **composites** (Phase 3)
-   - id, product_id, background_id, angled_shot_id, file_path
+7. **composites** (Phase 3 - SCHEMA READY, NOT USED)
+   - id, category_id, product_id, angled_shot_id, background_id, user_id
+   - storage_provider ('gdrive'), storage_path, storage_url
+   - gdrive_file_id (Google Drive file ID for fast deletion)
+   - metadata (JSONB), created_at
+   - UNIQUE(angled_shot_id, background_id) - prevents duplicates
+   - Migration 010: Full storage sync implementation
 
 8. **copy_docs** (Phase 4)
    - id, product_id, copy_text, version, prompt_used
@@ -440,12 +506,27 @@ AdForge is an AI-powered ad creative pipeline that automates the generation of p
 
 ### Storage Systems
 
-**Google Drive** (Primary - Phase 2):
-- All images stored in shared Google Drive folder
-- Folder: `/AdForge Assets/product-images/{user_id}/{product_id}/`
-- Thumbnail API URLs for fast, embeddable images
+**Google Drive** (Primary - Phase 2 & 3):
+- All images stored in AdForge Shared Drive
+- **Human-Readable Folder Structure** (NOT UUIDs):
+  ```
+  AdForge Shared Drive/
+  └── {category-slug}/                              (e.g., gummy-bear)
+      └── {product-slug}/                           (e.g., vitamin-c-gummies)
+          └── product-images/                       (container)
+              ├── {image-filename}.jpg              (original uploads)
+              └── {image-name}-angled-shots/        (AI variations per image)
+                  ├── left_30deg_{timestamp}.jpg
+                  └── ...
+  ```
+- **Path Examples:**
+  - Original: `gummy-bear/vitamin-c-gummies/product-images/vitamin-c-gummies.jpg`
+  - Angled: `gummy-bear/vitamin-c-gummies/product-images/vitamin-c-gummies-angled-shots/left_30deg.jpg`
+  - Background: `gummy-bear/backgrounds/tropical-warm.jpg`
+- Thumbnail API URLs: `https://drive.google.com/thumbnail?id={FILE_ID}&sz=w2000`
 - Service account with domain-wide delegation
 - Automatic folder creation with proper permissions
+- All files have public "anyone with link" permissions
 
 **Supabase Storage** (Legacy - Removed):
 - ❌ 8 unused buckets removed (brand-assets, product-images, angled-shots, etc.)
