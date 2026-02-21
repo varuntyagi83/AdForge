@@ -12,12 +12,12 @@ export const ANGLE_VARIATIONS = [
   {
     name: 'left_30deg',
     description: 'Left side, 30 degree angle',
-    prompt: 'Keep the jar standing VERTICALLY UPRIGHT on the surface. Move the camera position 30 degrees counterclockwise around the jar (imagine walking around to the left side of the jar). The left side edge should become visible while the front label remains partially readable. The jar must remain perfectly vertical and not tilted.',
+    prompt: 'Keep the jar standing VERTICALLY UPRIGHT on the surface. Move the camera SLIGHTLY to the left (about 30 degrees from center) - the front label should STILL BE THE MAIN FOCUS taking up 70-80% of the visible jar, with just the left edge becoming slightly visible (20-30%). This is a subtle angle change, not a dramatic rotation. The jar must remain perfectly vertical and not tilted.',
   },
   {
     name: 'right_30deg',
     description: 'Right side, 30 degree angle',
-    prompt: 'Keep the jar standing VERTICALLY UPRIGHT on the surface. Move the camera position 30 degrees clockwise around the jar (imagine walking around to the right side of the jar). The right side edge should become visible while the front label remains partially readable. The jar must remain perfectly vertical and not tilted.',
+    prompt: 'Keep the jar standing VERTICALLY UPRIGHT on the surface. Move the camera SLIGHTLY to the right (about 30 degrees from center) - the front label should STILL BE THE MAIN FOCUS taking up 70-80% of the visible jar, with just the right edge becoming slightly visible (20-30%). This is a subtle angle change, not a dramatic rotation. The jar must remain perfectly vertical and not tilted.',
   },
   {
     name: 'top_45deg',
