@@ -9,9 +9,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { MoreVertical, Trash2, Image, ImagePlus } from 'lucide-react'
+import { MoreVertical, Trash2, Image, ImagePlus, Edit } from 'lucide-react'
 import { toast } from 'sonner'
 import { ManageProductImagesDialog } from './ManageProductImagesDialog'
+import { EditProductDialog } from './EditProductDialog'
+import { ReferenceDisplay } from '@/components/ui/reference-display'
 import { createClient } from '@/lib/supabase/client'
 
 interface ProductCardProps {
@@ -29,13 +31,15 @@ interface ProductCardProps {
 export function ProductCard({ product, categoryId, onDeleted }: ProductCardProps) {
   const [deleting, setDeleting] = useState(false)
   const [manageImagesOpen, setManageImagesOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
   const [primaryImage, setPrimaryImage] = useState<string | null>(null)
   const [imageCount, setImageCount] = useState(0)
+  const [refreshKey, setRefreshKey] = useState(0)
   const supabase = createClient()
 
   useEffect(() => {
     fetchImages()
-  }, [product.id])
+  }, [product.id, refreshKey])
 
   const fetchImages = async () => {
     try {
@@ -122,9 +126,9 @@ export function ProductCard({ product, categoryId, onDeleted }: ProductCardProps
             <div className="flex-1 min-w-0">
               <h3 className="font-medium line-clamp-1">{product.name}</h3>
               {product.description && (
-                <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                  {product.description}
-                </p>
+                <div className="mt-1 line-clamp-2">
+                  <ReferenceDisplay text={product.description} className="text-xs" />
+                </div>
               )}
             </div>
             <DropdownMenu>
@@ -139,6 +143,10 @@ export function ProductCard({ product, categoryId, onDeleted }: ProductCardProps
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setEditOpen(true)}>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={handleDelete}
                   className="text-red-600 focus:text-red-600"
@@ -172,6 +180,17 @@ export function ProductCard({ product, categoryId, onDeleted }: ProductCardProps
         categoryId={categoryId}
         productId={product.id}
         productName={product.name}
+      />
+
+      <EditProductDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        categoryId={categoryId}
+        product={product}
+        onUpdated={() => {
+          setRefreshKey((prev) => prev + 1)
+          onDeleted() // Refresh the products list (misnomer - should be onChanged)
+        }}
       />
     </>
   )

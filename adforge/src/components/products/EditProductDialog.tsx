@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -15,22 +15,36 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { ReferencePicker } from '@/components/ui/reference-picker'
 
-interface CreateProductDialogProps {
+interface EditProductDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   categoryId: string
-  onCreated: () => void
+  product: {
+    id: string
+    name: string
+    description: string | null
+  }
+  onUpdated: () => void
 }
 
-export function CreateProductDialog({
+export function EditProductDialog({
   open,
   onOpenChange,
   categoryId,
-  onCreated,
-}: CreateProductDialogProps) {
+  product,
+  onUpdated,
+}: EditProductDialogProps) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // Initialize form when product changes or dialog opens
+  useEffect(() => {
+    if (open) {
+      setName(product.name)
+      setDescription(product.description || '')
+    }
+  }, [open, product])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -42,30 +56,31 @@ export function CreateProductDialog({
 
     setLoading(true)
     try {
-      const response = await fetch(`/api/categories/${categoryId}/products`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: name.trim(),
-          description: description.trim() || null,
-        }),
-      })
+      const response = await fetch(
+        `/api/categories/${categoryId}/products/${product.id}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: name.trim(),
+            description: description.trim() || null,
+          }),
+        }
+      )
 
       const data = await response.json()
 
       if (response.ok) {
-        toast.success('Product created successfully!')
-        setName('')
-        setDescription('')
-        onCreated()
+        toast.success('Product updated successfully!')
+        onUpdated()
         onOpenChange(false)
       } else {
-        toast.error(data.error || 'Failed to create product')
+        toast.error(data.error || 'Failed to update product')
       }
     } catch (error) {
-      toast.error('Failed to create product')
+      toast.error('Failed to update product')
     } finally {
       setLoading(false)
     }
@@ -76,9 +91,9 @@ export function CreateProductDialog({
       <DialogContent className="sm:max-w-[500px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Add Product</DialogTitle>
+            <DialogTitle>Edit Product</DialogTitle>
             <DialogDescription>
-              Add a new product to this category. You'll upload images in the next step.
+              Update product details. Use @ to reference brand assets or other products.
             </DialogDescription>
           </DialogHeader>
 
@@ -109,7 +124,7 @@ export function CreateProductDialog({
                 onChange={setDescription}
                 placeholder="Optional product description... Type @ to reference assets or products"
                 disabled={loading}
-                rows={3}
+                rows={4}
               />
             </div>
           </div>
@@ -124,7 +139,7 @@ export function CreateProductDialog({
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? 'Creating...' : 'Create Product'}
+              {loading ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </form>
