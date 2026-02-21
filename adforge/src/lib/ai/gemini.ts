@@ -193,6 +193,122 @@ Return a high-quality professional product photograph from the new angle.`
 }
 
 /**
+ * Generate backgrounds matching category style using Gemini
+ * For Phase 3: Background Generation
+ */
+export async function generateBackgrounds(
+  userPrompt: string,
+  lookAndFeel: string,
+  count: number = 1,
+  styleReferenceImages?: Array<{ data: string; mimeType: string }>
+): Promise<
+  Array<{
+    promptUsed: string
+    imageData: string
+    mimeType: string
+  }>
+> {
+  try {
+    // Initialize Gemini model with image generation support
+    const model = getGenAI().getGenerativeModel({
+      model: 'gemini-3-pro-image-preview',
+      generationConfig: {
+        temperature: 0.7, // Higher for creative backgrounds
+        topP: 0.95,
+        maxOutputTokens: 32768,
+        responseModalities: ['TEXT', 'IMAGE'],
+      } as any,
+    })
+
+    const results = []
+
+    for (let i = 0; i < count; i++) {
+      console.log(`Generating background ${i + 1}/${count}...`)
+
+      // Build the background generation prompt
+      const prompt = `Generate a high-quality product photography background with the following characteristics:
+
+Category Style: ${lookAndFeel}
+User Request: ${userPrompt}
+
+CRITICAL INSTRUCTIONS:
+- This is ONLY a background — no products, no text, no logos, no watermarks
+- The background should complement a product that will be composited on top later
+- Leave clear space in the center/foreground for a product to be placed
+- Match the lighting style to the category aesthetic
+- Professional, studio-quality output suitable for e-commerce
+- Resolution: High quality, suitable for 4K output
+- The scene should feel natural and inviting
+- Consider depth of field, lighting, and composition
+- Make it visually appealing and aligned with modern product photography trends
+
+${styleReferenceImages && styleReferenceImages.length > 0 ? 'Use the provided reference images as style guidance for colors, mood, and aesthetic.' : ''}
+
+Return a professional product photography background.`
+
+      try {
+        const contentParts: any[] = []
+
+        // Add style reference images if provided
+        if (styleReferenceImages && styleReferenceImages.length > 0) {
+          for (const refImage of styleReferenceImages) {
+            const base64Data = refImage.data.replace(/^data:image\/\w+;base64,/, '')
+            contentParts.push({
+              inlineData: {
+                data: base64Data,
+                mimeType: refImage.mimeType,
+              },
+            })
+          }
+        }
+
+        // Add the text prompt
+        contentParts.push({ text: prompt })
+
+        const result = await model.generateContent(contentParts)
+        const response = await result.response
+
+        // Extract the generated image from the response
+        const candidates = response.candidates
+        if (candidates && candidates.length > 0) {
+          const parts = candidates[0].content.parts
+
+          // Find the image part
+          const imagePart = parts?.find((part: any) => part.inlineData)
+
+          if (imagePart && 'inlineData' in imagePart && imagePart.inlineData?.data) {
+            const generatedBase64 = imagePart.inlineData.data
+            const generatedMimeType = imagePart.inlineData.mimeType || 'image/jpeg'
+
+            results.push({
+              promptUsed: prompt,
+              imageData: `data:${generatedMimeType};base64,${generatedBase64}`,
+              mimeType: generatedMimeType,
+            })
+
+            console.log(`   ✅ Background ${i + 1} generated successfully`)
+          } else {
+            console.warn(`   ⚠️  No image in response for background ${i + 1}`)
+            throw new Error('No image generated in response')
+          }
+        } else {
+          console.warn(`   ⚠️  No candidates in response for background ${i + 1}`)
+          throw new Error('No candidates in response')
+        }
+      } catch (error) {
+        console.error(`   ❌ Error generating background ${i + 1}:`, error)
+        throw error
+      }
+    }
+
+    return results
+  } catch (error) {
+    console.error('Error generating backgrounds:', error)
+    throw new Error('Failed to generate backgrounds')
+  }
+}
+
+/**
  * Legacy function for backward compatibility
  */
 export async function generateImage(
