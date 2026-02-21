@@ -11,14 +11,14 @@ function generateSlug(name: string): string {
     .replace(/^-+|-+$/g, '')
 }
 
-// GET /api/categories/[categoryId]/products/[id] - Get single product
+// GET /api/categories/[id]/products/[productId] - Get single product
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ categoryId: string; id: string }> }
+  { params }: { params: Promise<{ id: string; productId: string }> }
 ) {
   try {
     const supabase = await createServerSupabaseClient()
-    const { categoryId, id } = await params
+    const { id: categoryId, productId } = await params
 
     // Check authentication
     const {
@@ -33,7 +33,7 @@ export async function GET(
     const { data: product, error } = await supabase
       .from('products')
       .select('*, category:categories!inner(user_id)')
-      .eq('id', id)
+      .eq('id', productId)
       .eq('category_id', categoryId)
       .eq('category.user_id', user.id)
       .single()
@@ -51,14 +51,14 @@ export async function GET(
   }
 }
 
-// PUT /api/categories/[categoryId]/products/[id] - Update product
+// PUT /api/categories/[id]/products/[productId] - Update product
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ categoryId: string; id: string }> }
+  { params }: { params: Promise<{ id: string; productId: string }> }
 ) {
   try {
     const supabase = await createServerSupabaseClient()
-    const { categoryId, id } = await params
+    const { id: categoryId, productId } = await params
     const body = await request.json()
 
     // Check authentication
@@ -74,7 +74,7 @@ export async function PUT(
     const { data: existingProduct, error: fetchError } = await supabase
       .from('products')
       .select('*, category:categories!inner(user_id)')
-      .eq('id', id)
+      .eq('id', productId)
       .eq('category_id', categoryId)
       .eq('category.user_id', user.id)
       .single()
@@ -105,7 +105,7 @@ export async function PUT(
     const { data: product, error } = await supabase
       .from('products')
       .update(updateData)
-      .eq('id', id)
+      .eq('id', productId)
       .select()
       .single()
 
@@ -122,14 +122,14 @@ export async function PUT(
   }
 }
 
-// DELETE /api/categories/[categoryId]/products/[id] - Delete product
+// DELETE /api/categories/[id]/products/[productId] - Delete product
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ categoryId: string; id: string }> }
+  { params }: { params: Promise<{ id: string; productId: string }> }
 ) {
   try {
     const supabase = await createServerSupabaseClient()
-    const { categoryId, id } = await params
+    const { id: categoryId, productId } = await params
 
     // Check authentication
     const {
@@ -144,7 +144,7 @@ export async function DELETE(
     const { data: product, error: fetchError } = await supabase
       .from('products')
       .select('*, category:categories!inner(user_id)')
-      .eq('id', id)
+      .eq('id', productId)
       .eq('category_id', categoryId)
       .eq('category.user_id', user.id)
       .single()
@@ -154,7 +154,7 @@ export async function DELETE(
     }
 
     // Delete product (cascade will handle related records)
-    const { error } = await supabase.from('products').delete().eq('id', id)
+    const { error } = await supabase.from('products').delete().eq('id', productId)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })

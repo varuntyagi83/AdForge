@@ -11,14 +11,14 @@ function generateSlug(name: string): string {
     .replace(/^-+|-+$/g, '')
 }
 
-// GET /api/categories/[categoryId]/products - List all products in category
+// GET /api/categories/[id]/products - List all products in category
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ categoryId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabaseClient()
-    const { categoryId } = await params
+    const { id: categoryId } = await params
 
     // Check authentication
     const {
@@ -61,14 +61,14 @@ export async function GET(
   }
 }
 
-// POST /api/categories/[categoryId]/products - Create new product
+// POST /api/categories/[id]/products - Create new product
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ categoryId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createServerSupabaseClient()
-    const { categoryId } = await params
+    const { id: categoryId } = await params
     const body = await request.json()
 
     // Check authentication
