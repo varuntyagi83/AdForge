@@ -12,6 +12,7 @@ import { AngledShotsList } from '@/components/angled-shots/AngledShotsList'
 import { BackgroundGenerationWorkspace } from '@/components/backgrounds/BackgroundGenerationWorkspace'
 import { CompositeWorkspace } from '@/components/composites/CompositeWorkspace'
 import { CopyWorkspace } from '@/components/copy/CopyWorkspace'
+import { TemplateWorkspace } from '@/components/templates/TemplateWorkspace'
 
 interface CategoryDetailPageProps {
   params: Promise<{ id: string }>
@@ -173,13 +174,8 @@ export default function CategoryDetailPage({ params }: CategoryDetailPageProps) 
           <CopyWorkspace category={category} />
         </TabsContent>
 
-        <TabsContent value="guidelines">
-          <div className="rounded-lg border border-dashed p-12 text-center">
-            <p className="text-muted-foreground">Coming in Phase 5</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Upload design guidelines and safe zones
-            </p>
-          </div>
+        <TabsContent value="guidelines" className="space-y-4">
+          <TemplateWorkspace categoryId={category.id} />
         </TabsContent>
 
         <TabsContent value="final-assets">
