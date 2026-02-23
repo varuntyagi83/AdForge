@@ -17,9 +17,10 @@ interface CopyWorkspaceProps {
     slug: string
     look_and_feel: string | null
   }
+  format: string
 }
 
-export function CopyWorkspace({ category }: CopyWorkspaceProps) {
+export function CopyWorkspace({ category, format }: CopyWorkspaceProps) {
   const [generatedCopies, setGeneratedCopies] = useState<GeneratedCopy[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)

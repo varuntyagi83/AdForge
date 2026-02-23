@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { uploadFile } from '@/lib/storage'
 import { spawn } from 'child_process'
-import { unlink } from 'fs/promises'
+import { unlink, readFile } from 'fs/promises'
 import path from 'path'
 
 // GET - Fetch all final assets for category
@@ -185,8 +185,11 @@ export async function POST(
     const timestamp = Date.now()
     const storagePath = `${categorySlug}/final-assets/asset_${timestamp}.png`
 
+    // Read the file as a Buffer
+    const fileBuffer = await readFile(result)
+
     const { fileId, publicUrl } = await uploadFile(
-      result,
+      fileBuffer,
       storagePath,
       { provider: 'gdrive' }
     )

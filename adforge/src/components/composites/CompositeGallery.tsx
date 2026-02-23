@@ -38,11 +38,13 @@ interface Composite {
 
 interface CompositeGalleryProps {
   categoryId: string
+  format: string
   refreshTrigger?: number
 }
 
 export function CompositeGallery({
   categoryId,
+  format,
   refreshTrigger,
 }: CompositeGalleryProps) {
   const [composites, setComposites] = useState<Composite[]>([])
@@ -51,7 +53,7 @@ export function CompositeGallery({
 
   const fetchComposites = async () => {
     try {
-      const response = await fetch(`/api/categories/${categoryId}/composites`)
+      const response = await fetch(`/api/categories/${categoryId}/composites?format=${format}`)
       const data = await response.json()
 
       if (response.ok) {
@@ -69,7 +71,7 @@ export function CompositeGallery({
 
   useEffect(() => {
     fetchComposites()
-  }, [categoryId, refreshTrigger])
+  }, [categoryId, format, refreshTrigger])
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`Delete "${name}"? This action cannot be undone.`)) {
