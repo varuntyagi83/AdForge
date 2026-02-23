@@ -2,25 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { google } from 'googleapis'
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-const GOOGLE_DRIVE_CLIENT_EMAIL = process.env.GOOGLE_DRIVE_CLIENT_EMAIL!
-const GOOGLE_DRIVE_PRIVATE_KEY = process.env.GOOGLE_DRIVE_PRIVATE_KEY?.replace(
-  /\\n/g,
-  '\n'
-)!
-
-const auth = new google.auth.GoogleAuth({
-  credentials: {
-    client_email: GOOGLE_DRIVE_CLIENT_EMAIL,
-    private_key: GOOGLE_DRIVE_PRIVATE_KEY,
-  },
-  scopes: ['https://www.googleapis.com/auth/drive'],
-})
-
-const drive = google.drive({ version: 'v3', auth })
+// Mark route as dynamic to prevent build-time execution
+export const dynamic = 'force-dynamic'
 
 /**
  * Verify storage sync: Check if files in database still exist in Google Drive
@@ -38,6 +21,28 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('🔍 Starting storage sync verification...')
+
+    // Initialize Supabase client
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // Initialize Google Drive
+    const GOOGLE_DRIVE_CLIENT_EMAIL = process.env.GOOGLE_DRIVE_CLIENT_EMAIL!
+    const GOOGLE_DRIVE_PRIVATE_KEY = process.env.GOOGLE_DRIVE_PRIVATE_KEY?.replace(
+      /\\n/g,
+      '\n'
+    )!
+
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: GOOGLE_DRIVE_CLIENT_EMAIL,
+        private_key: GOOGLE_DRIVE_PRIVATE_KEY,
+      },
+      scopes: ['https://www.googleapis.com/auth/drive'],
+    })
+
+    const drive = google.drive({ version: 'v3', auth })
 
     const tables = [
       'backgrounds',
@@ -200,6 +205,11 @@ export async function GET(request: NextRequest) {
     if (expectedToken && authHeader !== `Bearer ${expectedToken}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    // Initialize Supabase client
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     const tables = [
       'backgrounds',
