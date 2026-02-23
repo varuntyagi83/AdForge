@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { generateBackgrounds } from '@/lib/ai/gemini'
+import { getFormatDimensions } from '@/lib/formats'
 
 /**
  * POST /api/categories/[id]/backgrounds/generate
  * Generates AI backgrounds matching the category's look & feel
- * Phase 3: Background Generation
+ * Phase 3: Background Generation (updated for multi-format support)
  */
 export async function POST(
   request: NextRequest,
@@ -38,7 +39,16 @@ export async function POST(
 
     // Get request body
     const body = await request.json()
-    const { prompt, count = 1, referenceAssetIds } = body
+    const {
+      prompt,
+      count = 1,
+      referenceAssetIds,
+      format = '1:1' // NEW: Format parameter
+    } = body
+
+    // Validate format
+    const formatDimensions = getFormatDimensions(format)
+    console.log(`Generating ${format} backgrounds (${formatDimensions.width}x${formatDimensions.height})`)
 
     // Validation
     if (!prompt) {
@@ -134,17 +144,20 @@ export async function POST(
 
     // Generate backgrounds using Gemini AI
     console.log(
-      `Generating ${count} backgrounds for category ${category.name}...`
+      `Generating ${count} ${format} backgrounds for category ${category.name}...`
     )
     console.log(`Prompt: ${prompt}`)
     console.log(`Look & Feel: ${category.look_and_feel}`)
     console.log(`Style references: ${styleReferenceImages.length}`)
+    console.log(`Format: ${format} (${formatDimensions.width}x${formatDimensions.height})`)
 
     const generatedBackgrounds = await generateBackgrounds(
       prompt,
       category.look_and_feel,
       count,
-      styleReferenceImages.length > 0 ? styleReferenceImages : undefined
+      styleReferenceImages.length > 0 ? styleReferenceImages : undefined,
+      format, // NEW: Pass aspect ratio
+      '2K' // NEW: Image size
     )
 
     return NextResponse.json({

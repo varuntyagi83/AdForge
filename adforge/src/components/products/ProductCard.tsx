@@ -25,10 +25,11 @@ interface ProductCardProps {
     created_at: string
   }
   categoryId: string
+  format: string // Aspect ratio (1:1, 4:5, 9:16, 16:9)
   onDeleted: () => void
 }
 
-export function ProductCard({ product, categoryId, onDeleted }: ProductCardProps) {
+export function ProductCard({ product, categoryId, format, onDeleted }: ProductCardProps) {
   const [deleting, setDeleting] = useState(false)
   const [manageImagesOpen, setManageImagesOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
@@ -185,6 +186,7 @@ export function ProductCard({ product, categoryId, onDeleted }: ProductCardProps
         categoryId={categoryId}
         productId={product.id}
         productName={product.name}
+        format={format}
       />
 
       <EditProductDialog

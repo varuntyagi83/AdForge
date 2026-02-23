@@ -26,6 +26,7 @@ interface BackgroundPreviewGridProps {
   backgrounds: GeneratedBackground[]
   categoryId: string
   categorySlug: string
+  format?: string // NEW: Format metadata
   onBackgroundSaved: () => void
   onClearAll: () => void
 }
@@ -34,6 +35,7 @@ export function BackgroundPreviewGrid({
   backgrounds,
   categoryId,
   categorySlug,
+  format = '1:1', // NEW: Default to 1:1
   onBackgroundSaved,
   onClearAll,
 }: BackgroundPreviewGridProps) {
@@ -71,6 +73,7 @@ export function BackgroundPreviewGrid({
           promptUsed: background.promptUsed,
           imageData: background.imageData,
           mimeType: background.mimeType,
+          format, // NEW: Include format
         }),
       })
 
@@ -122,6 +125,7 @@ export function BackgroundPreviewGrid({
             promptUsed: background.promptUsed,
             imageData: background.imageData,
             mimeType: background.mimeType,
+            format, // NEW: Include format
           }),
         })
       } catch (error) {

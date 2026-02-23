@@ -103,7 +103,7 @@ export class GoogleDriveAdapter implements StorageAdapter {
           mimeType: options?.contentType || 'application/octet-stream',
           body: stream,
         },
-        fields: 'id, name, size, webViewLink, webContentLink',
+        fields: 'id, name, size, webViewLink, webContentLink, thumbnailLink',
         supportsAllDrives: true,
       })
 
@@ -117,8 +117,9 @@ export class GoogleDriveAdapter implements StorageAdapter {
         supportsAllDrives: true,
       })
 
-      // Get direct image link (for embedding/viewing, not download)
-      // Using Google Drive thumbnail API for images
+      // Use Google Drive thumbnail API for image embedding
+      // This format works in <img> tags without CORS issues and doesn't expire
+      // sz=w2000 ensures high quality (max 2000px width)
       const publicUrl = `https://drive.google.com/thumbnail?id=${data.id}&sz=w2000`
 
       return {

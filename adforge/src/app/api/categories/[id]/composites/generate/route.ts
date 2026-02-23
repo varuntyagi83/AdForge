@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { generateComposite } from '@/lib/ai/gemini'
+import { getFormatDimensions } from '@/lib/formats'
 
 /**
  * POST /api/categories/[id]/composites/generate
  * Generates AI composites by combining angled shots with backgrounds
- * Phase 3: Product × Background Composites
+ * Phase 4: Format-aware composite generation
  */
 export async function POST(
   request: NextRequest,
@@ -36,25 +37,35 @@ export async function POST(
       return NextResponse.json({ error: 'Category not found' }, { status: 404 })
     }
 
-    // Fetch template for this category (to get safe zones)
+    // Get request body
+    const body = await request.json()
+    const {
+      mode = 'selected',
+      pairs = [],
+      userPrompt,
+      format = '1:1' // NEW: Format parameter
+    } = body
+
+    // Validate format
+    const formatDimensions = getFormatDimensions(format)
+    console.log(`Generating composites for format: ${format} (${formatDimensions.width}x${formatDimensions.height})`)
+
+    // Fetch template for this category + format (to get safe zones)
     const { data: template } = await supabase
       .from('templates')
-      .select('id, name, template_data')
+      .select('id, name, format, template_data')
       .eq('category_id', categoryId)
+      .eq('format', format) // NEW: Filter by format
       .single()
 
-    // Extract safe zones from template (optional - category may not have template yet)
+    // Extract safe zones from template (optional - category may not have template for this format yet)
     let safeZones: any[] = []
     if (template && template.template_data) {
       safeZones = template.template_data.safe_zones || []
-      console.log(`Found ${safeZones.length} safe zones in template: ${template.name}`)
+      console.log(`Found ${safeZones.length} safe zones in ${format} template: ${template.name}`)
     } else {
-      console.log('No template found for category, composites will be generated without safe zone constraints')
+      console.log(`No ${format} template found for category, composites will be generated without safe zone constraints`)
     }
-
-    // Get request body
-    const body = await request.json()
-    const { mode = 'selected', pairs = [], userPrompt } = body
 
     // Validation
     if (mode !== 'all_combinations' && mode !== 'selected') {
@@ -78,28 +89,30 @@ export async function POST(
     }> = []
 
     if (mode === 'all_combinations') {
-      // Fetch all angled shots for this category
+      // Fetch all angled shots for this category + format
       const { data: angledShots } = await supabase
         .from('angled_shots')
         .select('id')
         .eq('category_id', categoryId)
+        .eq('format', format) // NEW: Filter by format
 
-      // Fetch all backgrounds for this category
+      // Fetch all backgrounds for this category + format
       const { data: backgrounds } = await supabase
         .from('backgrounds')
         .select('id')
         .eq('category_id', categoryId)
+        .eq('format', format) // NEW: Filter by format
 
       if (!angledShots || angledShots.length === 0) {
         return NextResponse.json(
-          { error: 'No angled shots found for this category' },
+          { error: `No ${format} angled shots found for this category. Generate angled shots for this format first.` },
           { status: 400 }
         )
       }
 
       if (!backgrounds || backgrounds.length === 0) {
         return NextResponse.json(
-          { error: 'No backgrounds found for this category' },
+          { error: `No ${format} backgrounds found for this category. Generate backgrounds for this format first.` },
           { status: 400 }
         )
       }
@@ -115,7 +128,7 @@ export async function POST(
       }
 
       console.log(
-        `All combinations mode: ${angledShots.length} shots × ${backgrounds.length} backgrounds = ${compositionPairs.length} composites`
+        `All combinations mode (${format}): ${angledShots.length} shots × ${backgrounds.length} backgrounds = ${compositionPairs.length} composites`
       )
     } else {
       // Selected mode - use provided pairs
@@ -243,7 +256,9 @@ export async function POST(
           backgroundMimeType,
           userPrompt,
           category.look_and_feel || undefined,
-          safeZones.length > 0 ? safeZones : undefined
+          safeZones.length > 0 ? safeZones : undefined,
+          formatDimensions.width, // NEW: Pass canvas width
+          formatDimensions.height // NEW: Pass canvas height
         )
 
         results.push({
@@ -269,12 +284,14 @@ export async function POST(
     }
 
     return NextResponse.json({
-      message: `Generated ${results.length} composites`,
+      message: `Generated ${results.length} ${format} composites`,
       category: {
         id: category.id,
         name: category.name,
         slug: category.slug,
       },
+      format,
+      dimensions: formatDimensions,
       total_combinations: compositionPairs.length,
       results,
     })

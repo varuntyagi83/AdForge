@@ -1,91 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { uploadFile } from '@/lib/storage'
+import { GoogleDriveAdapter } from '@/lib/storage/gdrive-adapter'
 
-// Helper to generate slug from name
-function generateSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-}
-
-/**
- * GET /api/categories/[id]/templates
- * Lists all templates for a category
- */
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createServerSupabaseClient()
     const { id: categoryId } = await params
+    const supabase = await createServerSupabaseClient()
+    const searchParams = request.nextUrl.searchParams
+    const format = searchParams.get('format')
 
-    // Check authentication
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Verify category belongs to user
-    const { data: category } = await supabase
-      .from('categories')
-      .select('id, name, slug')
-      .eq('id', categoryId)
-      .eq('user_id', user.id)
-      .single()
-
-    if (!category) {
-      return NextResponse.json({ error: 'Category not found' }, { status: 404 })
-    }
-
-    // Get all templates for this category
-    const { data: templates, error } = await supabase
+    // Build query
+    let query = supabase
       .from('templates')
       .select('*')
       .eq('category_id', categoryId)
       .order('created_at', { ascending: false })
+
+    // Filter by format if specified
+    if (format) {
+      query = query.eq('format', format)
+    }
+
+    const { data: templates, error } = await query
 
     if (error) {
       console.error('Error fetching templates:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({
-      category: {
-        id: category.id,
-        name: category.name,
-        slug: category.slug,
-      },
-      templates: templates || [],
-    })
-  } catch (error) {
-    console.error('Error fetching templates:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ templates })
+  } catch (error: any) {
+    console.error('Error in templates GET:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }
 
-/**
- * POST /api/categories/[id]/templates
- * Creates a new template with template_data JSON
- */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createServerSupabaseClient()
     const { id: categoryId } = await params
+    const supabase = await createServerSupabaseClient()
+    const body = await request.json()
 
+    const {
+      name,
+      description,
+      format,
+      width,
+      height,
+      template_data,
+    } = body
+
+    // Get user ID
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -94,100 +65,75 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Get category slug for storage path
     const { data: category } = await supabase
       .from('categories')
-      .select('id, slug')
+      .select('slug')
       .eq('id', categoryId)
-      .eq('user_id', user.id)
       .single()
 
-    if (!category) {
-      return NextResponse.json({ error: 'Category not found' }, { status: 404 })
-    }
+    const categorySlug = category?.slug || 'unknown'
 
-    const body = await request.json()
-    const {
-      name,
-      description,
-      template_data,
-      format = '1:1',
-      width = 1080,
-      height = 1080,
-    } = body
-
-    if (!name) {
-      return NextResponse.json({ error: 'name is required' }, { status: 400 })
-    }
-
-    if (!template_data) {
-      return NextResponse.json(
-        { error: 'template_data is required' },
-        { status: 400 }
-      )
-    }
-
-    const slug = generateSlug(name)
-
-    // Save template preview as JSON to Google Drive
-    // (This is just the template configuration, not an actual rendered image)
-    const templatePreview = {
-      name,
-      description,
-      format,
-      width,
-      height,
-      template_data,
-      created_at: new Date().toISOString(),
-    }
-
-    const fileName = `${category.slug}/templates/${slug}_${Date.now()}.json`
-    const buffer = Buffer.from(JSON.stringify(templatePreview, null, 2), 'utf-8')
-
-    console.log(`Uploading template preview to Google Drive: ${fileName}`)
-    const storageFile = await uploadFile(buffer, fileName, {
-      contentType: 'application/json',
-      provider: 'gdrive',
-    })
-
-    // Save to database
-    const { data: template, error: dbError } = await supabase
+    // Create template
+    // Convert format from "4:5" to "4x5" for folder naming
+    const formatFolder = format.replace(':', 'x')
+    const { data: template, error } = await supabase
       .from('templates')
       .insert({
         category_id: categoryId,
         user_id: user.id,
         name,
-        description: description || null,
+        description,
         format,
         width,
         height,
         template_data,
         storage_provider: 'gdrive',
-        storage_path: storageFile.path,
-        storage_url: storageFile.publicUrl,
-        gdrive_file_id: storageFile.fileId || null,
-        slug,
+        storage_path: `${categorySlug}/templates/${formatFolder}/${name.toLowerCase().replace(/\s+/g, '-')}.json`,
+        storage_url: '', // Will be updated after upload
+        slug: name.toLowerCase().replace(/\s+/g, '-'),
         metadata: {},
       })
       .select()
       .single()
 
-    if (dbError) {
-      console.error('Database error:', dbError)
-      return NextResponse.json(
-        { error: 'Failed to save template' },
-        { status: 500 }
-      )
+    if (error) {
+      console.error('Error creating template:', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json(
-      { message: 'Template created successfully', template },
-      { status: 201 }
-    )
+    // Upload template JSON to Google Drive
+    try {
+      const gdrive = new GoogleDriveAdapter()
+      const templateJson = JSON.stringify(template_data, null, 2)
+      const templateBuffer = Buffer.from(templateJson, 'utf-8')
+
+      // Convert format from "4:5" to "4x5" for folder naming
+      const formatFolder = format.replace(':', 'x')
+      const storagePath = `${categorySlug}/templates/${formatFolder}/${name.toLowerCase().replace(/\s+/g, '-')}.json`
+      const uploadResult = await gdrive.upload(templateBuffer, storagePath, {
+        contentType: 'application/json',
+      })
+
+      // Update template with Google Drive URL
+      const { data: updatedTemplate } = await supabase
+        .from('templates')
+        .update({ storage_url: uploadResult.publicUrl })
+        .eq('id', template.id)
+        .select()
+        .single()
+
+      return NextResponse.json({ template: updatedTemplate || template }, { status: 201 })
+    } catch (uploadError) {
+      console.error('Error uploading to Google Drive:', uploadError)
+      // Template is created in DB but not in GDrive - return template anyway
+      return NextResponse.json({
+        template,
+        warning: 'Template created but failed to upload to Google Drive'
+      }, { status: 201 })
+    }
   } catch (error: any) {
-    console.error('Error creating template:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    console.error('Error in templates POST:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

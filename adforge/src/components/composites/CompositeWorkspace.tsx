@@ -15,6 +15,7 @@ interface Category {
 
 interface CompositeWorkspaceProps {
   category: Category
+  format?: string
 }
 
 export interface GeneratedComposite {
@@ -27,7 +28,7 @@ export interface GeneratedComposite {
   prompt_used: string
 }
 
-export function CompositeWorkspace({ category }: CompositeWorkspaceProps) {
+export function CompositeWorkspace({ category, format = '1:1' }: CompositeWorkspaceProps) {
   const [generatedComposites, setGeneratedComposites] = useState<
     GeneratedComposite[]
   >([])
@@ -53,6 +54,7 @@ export function CompositeWorkspace({ category }: CompositeWorkspaceProps) {
       {/* Generation Form */}
       <CompositeGenerationForm
         category={category}
+        format={format}
         onCompositesGenerated={handleCompositesGenerated}
         isGenerating={isGenerating}
         setIsGenerating={setIsGenerating}
@@ -64,6 +66,7 @@ export function CompositeWorkspace({ category }: CompositeWorkspaceProps) {
           composites={generatedComposites}
           categoryId={category.id}
           categorySlug={category.slug}
+          format={format}
           onCompositeSaved={handleCompositeSaved}
           onClearAll={handleClearAll}
         />
@@ -77,6 +80,7 @@ export function CompositeWorkspace({ category }: CompositeWorkspaceProps) {
         <TabsContent value="gallery" className="mt-6">
           <CompositeGallery
             categoryId={category.id}
+            format={format}
             refreshTrigger={refreshKey}
           />
         </TabsContent>

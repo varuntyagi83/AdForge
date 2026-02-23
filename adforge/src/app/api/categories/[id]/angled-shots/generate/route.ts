@@ -38,11 +38,20 @@ export async function POST(
 
     // Get request body
     const body = await request.json()
-    const { productId, productImageId, selectedAngles } = body
+    const { productId, productImageId, selectedAngles, format = '1:1' } = body
 
     if (!productId || !productImageId) {
       return NextResponse.json(
         { error: 'productId and productImageId are required' },
+        { status: 400 }
+      )
+    }
+
+    // Validate format
+    const validFormats = ['1:1', '16:9', '9:16', '4:5']
+    if (!validFormats.includes(format)) {
+      return NextResponse.json(
+        { error: `Invalid format. Must be one of: ${validFormats.join(', ')}` },
         { status: 400 }
       )
     }
@@ -62,7 +71,7 @@ export async function POST(
     // Get the product image from database and storage
     const { data: productImage } = await supabase
       .from('product_images')
-      .select('id, file_path, file_name, mime_type')
+      .select('id, file_path, file_name, mime_type, storage_provider, storage_url, storage_path')
       .eq('id', productImageId)
       .eq('product_id', productId)
       .single()
@@ -74,17 +83,43 @@ export async function POST(
       )
     }
 
-    // Download the image from storage
-    const { data: imageBlob, error: downloadError } = await supabase.storage
-      .from('product-images')
-      .download(productImage.file_path)
+    // Download the image from storage (Google Drive or Supabase)
+    let imageBlob: Blob
 
-    if (downloadError || !imageBlob) {
-      console.error('Error downloading image:', downloadError)
-      return NextResponse.json(
-        { error: 'Failed to download product image' },
-        { status: 500 }
-      )
+    if (productImage.storage_provider === 'gdrive' && productImage.storage_url) {
+      // Download from Google Drive using the public URL
+      console.log(`Downloading from Google Drive: ${productImage.storage_url}`)
+
+      try {
+        const response = await fetch(productImage.storage_url)
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        }
+        imageBlob = await response.blob()
+      } catch (error) {
+        console.error('Error downloading from Google Drive:', error)
+        return NextResponse.json(
+          { error: 'Failed to download product image from Google Drive' },
+          { status: 500 }
+        )
+      }
+    } else {
+      // Fallback to Supabase Storage
+      console.log(`Downloading from Supabase Storage: ${productImage.file_path}`)
+
+      const { data: downloadedBlob, error: downloadError } = await supabase.storage
+        .from('product-images')
+        .download(productImage.file_path)
+
+      if (downloadError || !downloadedBlob) {
+        console.error('Error downloading from Supabase Storage:', downloadError)
+        return NextResponse.json(
+          { error: 'Failed to download product image from Supabase Storage' },
+          { status: 500 }
+        )
+      }
+
+      imageBlob = downloadedBlob
     }
 
     // Convert blob to base64
@@ -108,18 +143,20 @@ export async function POST(
 
     // Generate angled shots using Gemini AI
     console.log(
-      `Generating ${anglesToGenerate.length} angled shots for product ${product.name}...`
+      `Generating ${anglesToGenerate.length} angled shots for product ${product.name} in ${format} format...`
     )
 
     const generatedShots = await generateAngledShots(
       base64Image,
       productImage.mime_type,
       anglesToGenerate,
-      category.look_and_feel || undefined
+      category.look_and_feel || undefined,
+      format // Pass the aspect ratio to Gemini
     )
 
     return NextResponse.json({
-      message: `Generated ${generatedShots.length} angled shot variations`,
+      message: `Generated ${generatedShots.length} angled shot variations for ${format} format`,
+      format, // Include format in response
       category: {
         id: category.id,
         name: category.name,
@@ -140,7 +177,10 @@ export async function POST(
         preview: shot.imageData.substring(0, 100) + '...', // Truncate for response
       })),
       // Full data for client-side preview/saving
-      previewData: generatedShots,
+      previewData: generatedShots.map((shot) => ({
+        ...shot,
+        format, // Include format in each preview item
+      })),
     })
   } catch (error) {
     console.error('Error generating angled shots:', error)

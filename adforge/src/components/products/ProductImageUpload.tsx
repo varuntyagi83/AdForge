@@ -8,12 +8,14 @@ import { toast } from 'sonner'
 interface ProductImageUploadProps {
   categoryId: string
   productId: string
+  format: string // Aspect ratio (1:1, 4:5, 9:16, 16:9)
   onUploadComplete: () => void
 }
 
 export function ProductImageUpload({
   categoryId,
   productId,
+  format,
   onUploadComplete,
 }: ProductImageUploadProps) {
   const [uploading, setUploading] = useState(false)
@@ -44,6 +46,7 @@ export function ProductImageUpload({
       selectedFiles.forEach((file) => {
         formData.append('files', file)
       })
+      formData.append('format', format) // Add aspect ratio
 
       const response = await fetch(
         `/api/categories/${categoryId}/products/${productId}/images`,

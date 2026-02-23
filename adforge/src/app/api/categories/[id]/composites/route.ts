@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { uploadFile } from '@/lib/storage'
+import { formatToFolderName, getFormatDimensions } from '@/lib/formats'
 
 // Helper to generate slug from name
 function generateSlug(name: string): string {
@@ -15,6 +16,7 @@ function generateSlug(name: string): string {
 /**
  * GET /api/categories/[id]/composites
  * Lists all composites for a category with angled shot and background details
+ * Optional query param: ?format=1:1 to filter by format
  */
 export async function GET(
   request: NextRequest,
@@ -45,24 +47,38 @@ export async function GET(
       return NextResponse.json({ error: 'Category not found' }, { status: 404 })
     }
 
-    // Get all composites with related angled shots and backgrounds
-    const { data: composites, error } = await supabase
+    // Get optional format filter from query params
+    const { searchParams } = new URL(request.url)
+    const formatFilter = searchParams.get('format')
+
+    // Build query
+    let query = supabase
       .from('composites')
       .select(`
         *,
         angled_shot:angled_shot_id (
           id,
           angle_name,
-          angle_description
+          angle_description,
+          format
         ),
         background:background_id (
           id,
           name,
-          description
+          description,
+          format
         )
       `)
       .eq('category_id', categoryId)
-      .order('created_at', { ascending: false })
+
+    // Apply format filter if provided
+    if (formatFilter) {
+      query = query.eq('format', formatFilter)
+      console.log(`Filtering composites by format: ${formatFilter}`)
+    }
+
+    // Execute query
+    const { data: composites, error } = await query.order('created_at', { ascending: false })
 
     if (error) {
       console.error('Error fetching composites:', error)
@@ -148,6 +164,9 @@ export async function POST(
       angledShotId,
       backgroundId,
       productId,
+      format = '1:1', // NEW: Format parameter
+      width,
+      height,
     } = body
 
     // Validate required fields
@@ -157,6 +176,13 @@ export async function POST(
         { status: 400 }
       )
     }
+
+    // Get format dimensions (use provided width/height or defaults from format config)
+    const formatDimensions = getFormatDimensions(format)
+    const finalWidth = width || formatDimensions.width
+    const finalHeight = height || formatDimensions.height
+
+    console.log(`Saving ${format} composite: ${finalWidth}x${finalHeight}`)
 
     // Verify angled shot exists and belongs to this category
     const { data: angledShot } = await supabase
@@ -210,18 +236,19 @@ export async function POST(
     const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '')
     const buffer = Buffer.from(base64Data, 'base64')
 
-    // Generate filename using human-readable folder names (slugs)
+    // Generate filename using format-specific folder (x-notation for filesystem)
+    const folderName = formatToFolderName(format)
     const fileExt = mimeType?.split('/')[1] || 'jpg'
-    const fileName = `${category.slug}/composites/${slug}_${Date.now()}.${fileExt}`
+    const fileName = `${category.slug}/composites/${folderName}/${slug}_${Date.now()}.${fileExt}`
 
     // Upload to Google Drive
-    console.log(`Uploading composite to Google Drive: ${fileName}`)
+    console.log(`Uploading ${format} composite to Google Drive (folder: ${folderName}): ${fileName}`)
     const storageFile = await uploadFile(buffer, fileName, {
       contentType: mimeType || 'image/jpeg',
       provider: 'gdrive',
     })
 
-    // Save to database with storage sync fields
+    // Save to database with storage sync fields + format info
     const { data: composite, error: dbError } = await supabase
       .from('composites')
       .insert({
@@ -234,6 +261,9 @@ export async function POST(
         slug,
         description: description || null,
         prompt_used: promptUsed || null,
+        format, // NEW: Format field
+        width: finalWidth, // NEW: Width field
+        height: finalHeight, // NEW: Height field
         storage_provider: 'gdrive',
         storage_path: storageFile.path,
         storage_url: storageFile.publicUrl,

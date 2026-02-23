@@ -17,9 +17,10 @@ interface Product {
 
 interface ProductListProps {
   categoryId: string
+  format: string // Aspect ratio (1:1, 4:5, 9:16, 16:9)
 }
 
-export function ProductList({ categoryId }: ProductListProps) {
+export function ProductList({ categoryId, format }: ProductListProps) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -98,6 +99,7 @@ export function ProductList({ categoryId }: ProductListProps) {
               key={product.id}
               product={product}
               categoryId={categoryId}
+              format={format}
               onDeleted={handleProductDeleted}
             />
           ))}

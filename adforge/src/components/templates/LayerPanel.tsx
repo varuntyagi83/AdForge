@@ -1,31 +1,27 @@
 'use client'
 
-import { TemplateLayer } from './TemplateBuilderCanvas'
+import { TemplateLayer } from '@/lib/types/template'
 import { Button } from '@/components/ui/button'
-import { Card } from '@/components/ui/card'
-import { Eye, EyeOff, Lock, Unlock, Trash2, GripVertical } from 'lucide-react'
+import { Eye, EyeOff, Lock, Unlock, Trash2, MoveUp, MoveDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface LayerPanelProps {
   layers: TemplateLayer[]
   selectedLayerId: string | null
-  onSelectLayer: (id: string | null) => void
-  onUpdateLayer: (id: string, updates: Partial<TemplateLayer>) => void
-  onDeleteLayer: (id: string) => void
-  onReorderLayers: (layers: TemplateLayer[]) => void
+  onLayerSelect: (layerId: string) => void
+  onLayerUpdate: (layerId: string, updates: Partial<TemplateLayer>) => void
+  onLayerDelete: (layerId: string) => void
+  onLayerReorder: (layerId: string, direction: 'up' | 'down') => void
 }
 
 export function LayerPanel({
   layers,
   selectedLayerId,
-  onSelectLayer,
-  onUpdateLayer,
-  onDeleteLayer,
-  onReorderLayers,
+  onLayerSelect,
+  onLayerUpdate,
+  onLayerDelete,
+  onLayerReorder,
 }: LayerPanelProps) {
-  // Sort layers by z_index (highest first for display)
-  const sortedLayers = [...layers].sort((a, b) => b.z_index - a.z_index)
-
   const getLayerIcon = (type: TemplateLayer['type']) => {
     switch (type) {
       case 'background':
@@ -37,184 +33,119 @@ export function LayerPanel({
       case 'logo':
         return '🏷️'
       default:
-        return '📄'
+        return '▫️'
     }
   }
 
-  const getLayerColor = (type: TemplateLayer['type']) => {
-    switch (type) {
-      case 'background':
-        return 'bg-blue-100 border-blue-300'
-      case 'product':
-        return 'bg-purple-100 border-purple-300'
-      case 'text':
-        return 'bg-orange-100 border-orange-300'
-      case 'logo':
-        return 'bg-green-100 border-green-300'
-      default:
-        return 'bg-gray-100 border-gray-300'
-    }
-  }
-
-  const handleMoveUp = (layer: TemplateLayer) => {
-    const currentIndex = sortedLayers.findIndex((l) => l.id === layer.id)
-    if (currentIndex > 0) {
-      const newLayers = [...sortedLayers]
-      const [movedLayer] = newLayers.splice(currentIndex, 1)
-      newLayers.splice(currentIndex - 1, 0, movedLayer)
-
-      // Update z_index values
-      const reorderedLayers = newLayers.reverse().map((l, idx) => ({
-        ...l,
-        z_index: idx,
-      }))
-      onReorderLayers(reorderedLayers)
-    }
-  }
-
-  const handleMoveDown = (layer: TemplateLayer) => {
-    const currentIndex = sortedLayers.findIndex((l) => l.id === layer.id)
-    if (currentIndex < sortedLayers.length - 1) {
-      const newLayers = [...sortedLayers]
-      const [movedLayer] = newLayers.splice(currentIndex, 1)
-      newLayers.splice(currentIndex + 1, 0, movedLayer)
-
-      // Update z_index values
-      const reorderedLayers = newLayers.reverse().map((l, idx) => ({
-        ...l,
-        z_index: idx,
-      }))
-      onReorderLayers(reorderedLayers)
-    }
-  }
+  const sortedLayers = [...layers].sort((a, b) => b.z_index - a.z_index)
 
   return (
-    <Card className="p-4">
-      <div className="flex items-center justify-between mb-4">
+    <div className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+      <div className="p-4 border-b border-gray-200 dark:border-gray-700">
         <h3 className="font-semibold text-sm">Layers</h3>
-        <span className="text-xs text-muted-foreground">{layers.length} layers</span>
+        <p className="text-xs text-muted-foreground mt-1">
+          {layers.length} layer{layers.length !== 1 ? 's' : ''}
+        </p>
       </div>
 
-      {layers.length === 0 ? (
-        <div className="text-center py-8 text-sm text-muted-foreground">
-          No layers yet. Add layers using the toolbar above.
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {sortedLayers.map((layer, index) => {
+      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        {sortedLayers.length === 0 ? (
+          <div className="text-center py-8 text-sm text-muted-foreground">
+            No layers yet.
+            <br />
+            Add a layer to get started.
+          </div>
+        ) : (
+          sortedLayers.map((layer, index) => {
             const isSelected = layer.id === selectedLayerId
+            const isFirst = index === 0
+            const isLast = index === sortedLayers.length - 1
 
             return (
               <div
                 key={layer.id}
                 className={cn(
-                  'border rounded-lg p-3 cursor-pointer transition-all',
-                  getLayerColor(layer.type),
-                  isSelected && 'ring-2 ring-primary shadow-md',
-                  layer.locked && 'opacity-60'
+                  'group flex items-center gap-2 p-2 rounded cursor-pointer transition-colors',
+                  isSelected
+                    ? 'bg-primary/10 border border-primary'
+                    : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                 )}
-                onClick={() => onSelectLayer(layer.id)}
+                onClick={() => onLayerSelect(layer.id)}
               >
-                <div className="flex items-center gap-2">
-                  {/* Drag handle */}
-                  <div className="flex flex-col gap-0.5">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-4 w-4 p-0 hover:bg-transparent"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleMoveUp(layer)
-                      }}
-                      disabled={index === 0}
-                    >
-                      <GripVertical className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-4 w-4 p-0 hover:bg-transparent"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleMoveDown(layer)
-                      }}
-                      disabled={index === sortedLayers.length - 1}
-                    >
-                      <GripVertical className="h-3 w-3" />
-                    </Button>
-                  </div>
+                <span className="text-lg">{getLayerIcon(layer.type)}</span>
 
-                  {/* Layer info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">{getLayerIcon(layer.type)}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate">
-                          {layer.name || layer.type.charAt(0).toUpperCase() + layer.type.slice(1)}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Z: {layer.z_index} • {layer.width.toFixed(0)}x{layer.height.toFixed(0)}%
-                        </div>
-                      </div>
-                    </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">
+                    {layer.name || layer.type}
                   </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onUpdateLayer(layer.id, { locked: !layer.locked })
-                      }}
-                      title={layer.locked ? 'Unlock' : 'Lock'}
-                    >
-                      {layer.locked ? (
-                        <Lock className="h-3.5 w-3.5" />
-                      ) : (
-                        <Unlock className="h-3.5 w-3.5" />
-                      )}
-                    </Button>
-
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (
-                          confirm(
-                            `Delete layer "${layer.name || layer.type}"? This action cannot be undone.`
-                          )
-                        ) {
-                          onDeleteLayer(layer.id)
-                        }
-                      }}
-                      title="Delete layer"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                  <div className="text-xs text-muted-foreground">
+                    Z:{layer.z_index}
                   </div>
+                </div>
+
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {/* Move up/down */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    disabled={isFirst}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onLayerReorder(layer.id, 'up')
+                    }}
+                  >
+                    <MoveUp className="h-3 w-3" />
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    disabled={isLast}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onLayerReorder(layer.id, 'down')
+                    }}
+                  >
+                    <MoveDown className="h-3 w-3" />
+                  </Button>
+
+                  {/* Lock/Unlock */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onLayerUpdate(layer.id, { locked: !layer.locked })
+                    }}
+                  >
+                    {layer.locked ? (
+                      <Lock className="h-3 w-3" />
+                    ) : (
+                      <Unlock className="h-3 w-3" />
+                    )}
+                  </Button>
+
+                  {/* Delete */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onLayerDelete(layer.id)
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
                 </div>
               </div>
             )
-          })}
-        </div>
-      )}
-
-      <div className="mt-4 pt-4 border-t">
-        <div className="text-xs text-muted-foreground">
-          <p className="mb-1">💡 <strong>Tips:</strong></p>
-          <ul className="list-disc list-inside space-y-1 text-xs">
-            <li>Click to select a layer</li>
-            <li>Use arrows to reorder (changes Z-index)</li>
-            <li>Lock layers to prevent edits</li>
-            <li>Drag on canvas to reposition</li>
-          </ul>
-        </div>
+          })
+        )}
       </div>
-    </Card>
+    </div>
   )
 }

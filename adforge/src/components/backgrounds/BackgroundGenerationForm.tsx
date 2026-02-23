@@ -24,12 +24,14 @@ interface GeneratedBackground {
 
 interface BackgroundGenerationFormProps {
   category: Category
+  format?: string // NEW: Format to generate
   onBackgroundsGenerated: (backgrounds: GeneratedBackground[]) => void
   onGeneratingChange: (isGenerating: boolean) => void
 }
 
 export function BackgroundGenerationForm({
   category,
+  format = '1:1', // NEW: Default to 1:1
   onBackgroundsGenerated,
   onGeneratingChange,
 }: BackgroundGenerationFormProps) {
@@ -65,6 +67,7 @@ export function BackgroundGenerationForm({
             userPrompt: userPrompt.trim(),
             lookAndFeel: lookAndFeel.trim() || 'Professional product photography',
             count,
+            format, // NEW: Include format in request
           }),
         }
       )

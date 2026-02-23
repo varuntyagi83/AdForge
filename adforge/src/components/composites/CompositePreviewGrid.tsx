@@ -21,6 +21,7 @@ interface CompositePreviewGridProps {
   composites: GeneratedComposite[]
   categoryId: string
   categorySlug: string
+  format: string
   onCompositeSaved: () => void
   onClearAll: () => void
 }
@@ -29,6 +30,7 @@ export function CompositePreviewGrid({
   composites,
   categoryId,
   categorySlug,
+  format,
   onCompositeSaved,
   onClearAll,
 }: CompositePreviewGridProps) {
@@ -64,6 +66,7 @@ export function CompositePreviewGrid({
           mimeType: composite.image_mime_type,
           angledShotId: composite.angledShotId,
           backgroundId: composite.backgroundId,
+          format,
         }),
       })
 
@@ -115,6 +118,7 @@ export function CompositePreviewGrid({
             mimeType: composite.image_mime_type,
             angledShotId: composite.angledShotId,
             backgroundId: composite.backgroundId,
+            format,
           }),
         })
       } catch (error) {

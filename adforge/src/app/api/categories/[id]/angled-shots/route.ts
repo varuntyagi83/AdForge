@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { uploadFile } from '@/lib/storage'
+import { createDisplayName } from '@/lib/ai/format-angle-name'
 
 /**
  * GET /api/categories/[id]/angled-shots
@@ -38,6 +39,7 @@ export async function GET(
     // Get query parameters for filtering
     const searchParams = request.nextUrl.searchParams
     const productId = searchParams.get('productId')
+    const format = searchParams.get('format') // NEW: Format filter
 
     // Build query
     let query = supabase
@@ -47,6 +49,7 @@ export async function GET(
         id,
         angle_name,
         angle_description,
+        display_name,
         prompt_used,
         storage_path,
         storage_url,
@@ -64,7 +67,14 @@ export async function GET(
       query = query.eq('product_id', productId)
     }
 
+    // NEW: Filter by format if specified
+    if (format) {
+      query = query.eq('format', format)
+    }
+
     const { data: angledShots, error } = await query
+
+    console.log(`[Angled Shots API] Category: ${categoryId}, Format: ${format || 'all'}, Found: ${angledShots?.length || 0}`)
 
     if (error) {
       console.error('Error fetching angled shots:', error)
@@ -151,6 +161,7 @@ export async function POST(
       promptUsed,
       imageData,
       mimeType,
+      format = '1:1', // Aspect ratio (defaults to 1:1)
     } = body
 
     // Validate required fields
@@ -170,10 +181,19 @@ export async function POST(
       )
     }
 
-    // Verify product belongs to this category and get slug
+    // Calculate width and height based on format
+    const formatDimensions: Record<string, { width: number; height: number }> = {
+      '1:1': { width: 1080, height: 1080 },
+      '16:9': { width: 1920, height: 1080 },
+      '9:16': { width: 1080, height: 1920 },
+      '4:5': { width: 1080, height: 1350 },
+    }
+    const dimensions = formatDimensions[format] || formatDimensions['1:1']
+
+    // Verify product belongs to this category and get slug and name
     const { data: product } = await supabase
       .from('products')
-      .select('id, slug')
+      .select('id, slug, name')
       .eq('id', productId)
       .eq('category_id', categoryId)
       .single()
@@ -204,10 +224,11 @@ export async function POST(
     const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '')
     const buffer = Buffer.from(base64Data, 'base64')
 
-    // Generate filename using the new folder structure:
-    // {category}/{product}/product-images/{image-name}-angled-shots/{angle}_{timestamp}.{ext}
+    // Generate filename using the folder structure per STORAGE_HIERARCHY.md:
+    // {category}/{product}/product-images/angled-shots/{format}/{image-name}-{angle}_{timestamp}.{ext}
     const fileExt = mimeType?.split('/')[1] || 'jpg'
-    const fileName = `${category.slug}/${product.slug}/product-images/${imageNameWithoutExt}-angled-shots/${angleName}_${Date.now()}.${fileExt}`
+    const formatFolder = format.replace(':', 'x') // "4:5" → "4x5"
+    const fileName = `${category.slug}/${product.slug}/product-images/angled-shots/${formatFolder}/${imageNameWithoutExt}-${angleName}_${Date.now()}.${fileExt}`
 
     // Upload to Google Drive
     const storageFile = await uploadFile(buffer, fileName, {
@@ -215,7 +236,10 @@ export async function POST(
       provider: 'gdrive',
     })
 
-    // Save to database with Google Drive storage sync fields
+    // Create display name with product prefix (e.g., "Nike Air Max_Front")
+    const displayName = createDisplayName(product.name, angleName)
+
+    // Save to database with Google Drive storage sync fields and format dimensions
     const { data: angledShot, error: dbError } = await supabase
       .from('angled_shots')
       .insert({
@@ -225,7 +249,11 @@ export async function POST(
         user_id: user.id,
         angle_name: angleName,
         angle_description: angleDescription,
+        display_name: displayName, // Product-prefixed display name
         prompt_used: promptUsed || null,
+        format: format, // Aspect ratio (1:1, 16:9, 9:16, 4:5)
+        width: dimensions.width,
+        height: dimensions.height,
         storage_provider: 'gdrive',
         storage_path: storageFile.path,
         storage_url: storageFile.publicUrl,

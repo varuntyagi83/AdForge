@@ -13,6 +13,10 @@ import { BackgroundGenerationWorkspace } from '@/components/backgrounds/Backgrou
 import { CompositeWorkspace } from '@/components/composites/CompositeWorkspace'
 import { CopyWorkspace } from '@/components/copy/CopyWorkspace'
 import { TemplateWorkspace } from '@/components/templates/TemplateWorkspace'
+import { FinalAssetsWorkspace } from '@/components/final-assets/FinalAssetsWorkspace'
+import { FormatSelector } from '@/components/format-selector'
+import { GuidelineUploadForm } from '@/components/templates/GuidelineUploadForm'
+import { GuidelinesList } from '@/components/templates/GuidelinesList'
 
 interface CategoryDetailPageProps {
   params: Promise<{ id: string }>
@@ -40,6 +44,7 @@ export default function CategoryDetailPage({ params }: CategoryDetailPageProps) 
   const router = useRouter()
   const [category, setCategory] = useState<Category | null>(null)
   const [loading, setLoading] = useState(true)
+  const [selectedFormat, setSelectedFormat] = useState<string>('1:1') // NEW: Format selection state
 
   useEffect(() => {
     const fetchCategory = async () => {
@@ -107,6 +112,14 @@ export default function CategoryDetailPage({ params }: CategoryDetailPageProps) 
         )}
       </div>
 
+      {/* Format Selector - NEW */}
+      <div className="mb-6 p-4 bg-muted/30 rounded-lg border">
+        <FormatSelector
+          selectedFormat={selectedFormat}
+          onFormatChange={setSelectedFormat}
+        />
+      </div>
+
       <Tabs defaultValue="assets" className="space-y-4">
         <TabsList>
           <TabsTrigger value="assets">
@@ -125,11 +138,28 @@ export default function CategoryDetailPage({ params }: CategoryDetailPageProps) 
               </span>
             )}
           </TabsTrigger>
+          <TabsTrigger value="guidelines">
+            Guidelines
+            {category.counts.guidelines > 0 && (
+              <span className="ml-2 text-xs bg-primary text-primary-foreground rounded-full px-2 py-0.5">
+                {category.counts.guidelines}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="backgrounds">
             Backgrounds
             {category.counts.backgrounds > 0 && (
               <span className="ml-2 text-xs bg-primary text-primary-foreground rounded-full px-2 py-0.5">
                 {category.counts.backgrounds}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="templates">Templates</TabsTrigger>
+          <TabsTrigger value="copy">
+            Copy
+            {category.counts.copy_docs > 0 && (
+              <span className="ml-2 text-xs bg-primary text-primary-foreground rounded-full px-2 py-0.5">
+                {category.counts.copy_docs}
               </span>
             )}
           </TabsTrigger>
@@ -141,55 +171,59 @@ export default function CategoryDetailPage({ params }: CategoryDetailPageProps) 
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="copy">
-            Copy
-            {category.counts.copy_docs > 0 && (
+          <TabsTrigger value="final-assets">
+            Final Assets
+            {category.counts.final_assets > 0 && (
               <span className="ml-2 text-xs bg-primary text-primary-foreground rounded-full px-2 py-0.5">
-                {category.counts.copy_docs}
+                {category.counts.final_assets}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="guidelines">Guidelines</TabsTrigger>
-          <TabsTrigger value="final-assets">Final Assets</TabsTrigger>
           <TabsTrigger value="ad-export">Ad Export</TabsTrigger>
         </TabsList>
 
         <TabsContent value="assets" className="space-y-4">
-          <ProductList categoryId={category.id} />
+          <ProductList categoryId={category.id} format={selectedFormat} />
         </TabsContent>
 
         <TabsContent value="angled-shots" className="space-y-4">
-          <AngledShotsList categoryId={category.id} />
-        </TabsContent>
-
-        <TabsContent value="backgrounds" className="space-y-4">
-          <BackgroundGenerationWorkspace category={category} />
-        </TabsContent>
-
-        <TabsContent value="composites" className="space-y-4">
-          <CompositeWorkspace category={category} />
-        </TabsContent>
-
-        <TabsContent value="copy" className="space-y-4">
-          <CopyWorkspace category={category} />
+          <AngledShotsList categoryId={category.id} format={selectedFormat} />
         </TabsContent>
 
         <TabsContent value="guidelines" className="space-y-4">
-          <TemplateWorkspace categoryId={category.id} />
+          <GuidelineUploadForm
+            categoryId={category.id}
+            onUploadComplete={() => {
+              // Refresh guidelines list
+              window.location.reload()
+            }}
+          />
+          <GuidelinesList categoryId={category.id} />
         </TabsContent>
 
-        <TabsContent value="final-assets">
-          <div className="rounded-lg border border-dashed p-12 text-center">
-            <p className="text-muted-foreground">Coming in Phase 6</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Final composed creatives with all elements
-            </p>
-          </div>
+        <TabsContent value="backgrounds" className="space-y-4">
+          <BackgroundGenerationWorkspace category={category} format={selectedFormat} />
+        </TabsContent>
+
+        <TabsContent value="templates" className="space-y-4">
+          <TemplateWorkspace categoryId={category.id} format={selectedFormat} />
+        </TabsContent>
+
+        <TabsContent value="copy" className="space-y-4">
+          <CopyWorkspace category={category} format={selectedFormat} />
+        </TabsContent>
+
+        <TabsContent value="composites" className="space-y-4">
+          <CompositeWorkspace category={category} format={selectedFormat} />
+        </TabsContent>
+
+        <TabsContent value="final-assets" className="space-y-4">
+          <FinalAssetsWorkspace categoryId={category.id} format={selectedFormat} />
         </TabsContent>
 
         <TabsContent value="ad-export">
           <div className="rounded-lg border border-dashed p-12 text-center">
-            <p className="text-muted-foreground">Coming in Phase 7</p>
+            <p className="text-muted-foreground">Ad Export</p>
             <p className="text-sm text-muted-foreground mt-2">
               Export ads in multiple aspect ratios
             </p>

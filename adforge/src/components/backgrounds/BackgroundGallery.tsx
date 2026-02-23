@@ -23,11 +23,13 @@ interface Background {
 
 interface BackgroundGalleryProps {
   categoryId: string
+  format?: string // NEW: Format filter
   refreshTrigger?: number
 }
 
 export function BackgroundGallery({
   categoryId,
+  format, // NEW
   refreshTrigger,
 }: BackgroundGalleryProps) {
   const [backgrounds, setBackgrounds] = useState<Background[]>([])
@@ -36,7 +38,12 @@ export function BackgroundGallery({
 
   const fetchBackgrounds = async () => {
     try {
-      const response = await fetch(`/api/categories/${categoryId}/backgrounds`)
+      // NEW: Add format query parameter
+      const url = format
+        ? `/api/categories/${categoryId}/backgrounds?format=${format}`
+        : `/api/categories/${categoryId}/backgrounds`
+
+      const response = await fetch(url)
       const data = await response.json()
 
       if (response.ok) {
@@ -54,7 +61,7 @@ export function BackgroundGallery({
 
   useEffect(() => {
     fetchBackgrounds()
-  }, [categoryId, refreshTrigger])
+  }, [categoryId, format, refreshTrigger]) // NEW: Added format to dependencies
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`Delete "${name}"? This action cannot be undone.`)) {

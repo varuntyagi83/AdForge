@@ -39,6 +39,7 @@ interface Background {
 
 interface CompositeGenerationFormProps {
   category: Category
+  format: string
   onCompositesGenerated: (composites: GeneratedComposite[]) => void
   isGenerating: boolean
   setIsGenerating: (generating: boolean) => void
@@ -46,6 +47,7 @@ interface CompositeGenerationFormProps {
 
 export function CompositeGenerationForm({
   category,
+  format,
   onCompositesGenerated,
   isGenerating,
   setIsGenerating,
@@ -68,18 +70,18 @@ export function CompositeGenerationForm({
     const fetchAssets = async () => {
       setLoadingAssets(true)
       try {
-        // Fetch angled shots
+        // Fetch angled shots filtered by format
         const shotsResponse = await fetch(
-          `/api/categories/${category.id}/angled-shots`
+          `/api/categories/${category.id}/angled-shots?format=${format}`
         )
         if (shotsResponse.ok) {
           const shotsData = await shotsResponse.json()
           setAngledShots(shotsData.angledShots || [])
         }
 
-        // Fetch backgrounds
+        // Fetch backgrounds filtered by format
         const backgroundsResponse = await fetch(
-          `/api/categories/${category.id}/backgrounds`
+          `/api/categories/${category.id}/backgrounds?format=${format}`
         )
         if (backgroundsResponse.ok) {
           const backgroundsData = await backgroundsResponse.json()
@@ -94,7 +96,7 @@ export function CompositeGenerationForm({
     }
 
     fetchAssets()
-  }, [category.id])
+  }, [category.id, format])
 
   const handleGenerate = async () => {
     // Validation
@@ -129,6 +131,7 @@ export function CompositeGenerationForm({
           ? {
               mode: 'all_combinations',
               userPrompt: userPrompt.trim() || undefined,
+              format,
             }
           : {
               mode: 'selected',
@@ -139,6 +142,7 @@ export function CompositeGenerationForm({
                 }))
               ),
               userPrompt: userPrompt.trim() || undefined,
+              format,
             }
 
       const response = await fetch(

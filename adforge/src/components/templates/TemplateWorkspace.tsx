@@ -1,22 +1,17 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import dynamic from 'next/dynamic'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { GuidelineUploadForm } from './GuidelineUploadForm'
-import type { TemplateLayer, SafeZone } from './TemplateBuilderCanvas'
+import { TemplateBuilderCanvas, type TemplateLayer, type SafeZone } from './TemplateBuilderCanvas'
 import { LayerPanel } from './LayerPanel'
 import { PropertiesPanel } from './PropertiesPanel'
 import { ToolbarTemplateBuilder } from './ToolbarTemplateBuilder'
 import { TemplateSamplePreview } from './TemplateSamplePreview'
 import { TemplateGallery } from './TemplateGallery'
+import { FormatSelector } from './FormatSelector'
+import { getFormatDimensions, getFormatConfig } from '@/lib/formats'
 import { toast } from 'sonner'
-
-// Dynamic import for TemplateBuilderCanvas (uses Konva which is client-only)
-const TemplateBuilderCanvas = dynamic(
-  () => import('./TemplateBuilderCanvas').then((mod) => ({ default: mod.TemplateBuilderCanvas })),
-  { ssr: false }
-)
 
 interface Guideline {
   id: string
@@ -42,13 +37,16 @@ interface Template {
 
 interface TemplateWorkspaceProps {
   categoryId: string
+  format?: string
 }
 
-export function TemplateWorkspace({ categoryId }: TemplateWorkspaceProps) {
+export function TemplateWorkspace({ categoryId, format = '1:1' }: TemplateWorkspaceProps) {
   const [activeTab, setActiveTab] = useState('upload')
   const [guidelines, setGuidelines] = useState<Guideline[]>([])
   const [selectedGuideline, setSelectedGuideline] = useState<Guideline | null>(null)
 
+  const [selectedFormat, setSelectedFormat] = useState<string>(format)
+  const [templateName, setTemplateName] = useState<string>('')
   const [layers, setLayers] = useState<TemplateLayer[]>([])
   const [safeZones, setSafeZones] = useState<SafeZone[]>([])
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null)
@@ -76,17 +74,24 @@ export function TemplateWorkspace({ categoryId }: TemplateWorkspaceProps) {
     }
   }
 
-  // Fetch existing template
+  // Fetch existing template for the selected format
   const fetchTemplate = async () => {
     try {
-      const response = await fetch(`/api/categories/${categoryId}/templates`)
+      const response = await fetch(`/api/categories/${categoryId}/templates?format=${selectedFormat}`)
       const data = await response.json()
       if (response.ok && data.templates && data.templates.length > 0) {
         const template = data.templates[0]
         setCurrentTemplateId(template.id)
+        setTemplateName(template.name || '')
         setLayers(template.template_data.layers || [])
         setSafeZones(template.template_data.safe_zones || [])
         setHasChanges(false)
+      } else {
+        // No template for this format, reset to allow new template creation
+        setCurrentTemplateId(null)
+        setTemplateName('')
+        setLayers([])
+        setSafeZones([])
       }
     } catch (error) {
       console.error('Error fetching template:', error)
@@ -95,8 +100,11 @@ export function TemplateWorkspace({ categoryId }: TemplateWorkspaceProps) {
 
   useEffect(() => {
     fetchGuidelines()
-    fetchTemplate()
   }, [categoryId])
+
+  useEffect(() => {
+    fetchTemplate()
+  }, [categoryId, selectedFormat])
 
   useEffect(() => {
     setHasChanges(true)
@@ -177,10 +185,33 @@ export function TemplateWorkspace({ categoryId }: TemplateWorkspaceProps) {
     setLayers(newLayers)
   }
 
+  // Reorder single layer
+  const handleLayerReorder = (layerId: string, direction: 'up' | 'down') => {
+    const index = layers.findIndex((l) => l.id === layerId)
+    if (index === -1) return
+
+    const newLayers = [...layers]
+    if (direction === 'up' && index > 0) {
+      ;[newLayers[index], newLayers[index - 1]] = [newLayers[index - 1], newLayers[index]]
+      newLayers[index].z_index = layers[index - 1].z_index
+      newLayers[index - 1].z_index = layers[index].z_index
+    } else if (direction === 'down' && index < layers.length - 1) {
+      ;[newLayers[index], newLayers[index + 1]] = [newLayers[index + 1], newLayers[index]]
+      newLayers[index].z_index = layers[index + 1].z_index
+      newLayers[index + 1].z_index = layers[index].z_index
+    }
+    setLayers(newLayers)
+  }
+
   // Save template
   const handleSave = async () => {
     if (layers.length === 0) {
       toast.error('Add at least one layer before saving')
+      return
+    }
+
+    if (!templateName.trim()) {
+      toast.error('Please enter a template name')
       return
     }
 
@@ -194,12 +225,19 @@ export function TemplateWorkspace({ categoryId }: TemplateWorkspaceProps) {
 
       if (currentTemplateId) {
         // Update existing template
+        const formatConfig = getFormatDimensions(selectedFormat)
         const response = await fetch(
           `/api/categories/${categoryId}/templates/${currentTemplateId}`,
           {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ template_data: templateData }),
+            body: JSON.stringify({
+              name: templateName,
+              format: selectedFormat,
+              width: formatConfig.width,
+              height: formatConfig.height,
+              template_data: templateData,
+            }),
           }
         )
 
@@ -214,15 +252,16 @@ export function TemplateWorkspace({ categoryId }: TemplateWorkspaceProps) {
         }
       } else {
         // Create new template
+        const formatConfig = getFormatConfig(selectedFormat)
         const response = await fetch(`/api/categories/${categoryId}/templates`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: 'Template 1:1',
-            description: 'Instagram square template (1080x1080)',
-            format: '1:1',
-            width: 1080,
-            height: 1080,
+            name: templateName,
+            description: `${formatConfig.description} (${formatConfig.width}x${formatConfig.height})`,
+            format: selectedFormat,
+            width: formatConfig.width,
+            height: formatConfig.height,
             template_data: templateData,
           }),
         })
@@ -257,6 +296,16 @@ export function TemplateWorkspace({ categoryId }: TemplateWorkspaceProps) {
 
   const selectedLayer = layers.find((l) => l.id === selectedLayerId) || null
   const selectedSafeZone = safeZones.find((z) => z.id === selectedSafeZoneId) || null
+
+  // Get dimensions for the selected format
+  const { width: canvasWidth, height: canvasHeight } = getFormatDimensions(selectedFormat)
+
+  // Wrapper for layer update without id (PropertiesPanel doesn't need id)
+  const handleSelectedLayerUpdate = (updates: Partial<TemplateLayer>) => {
+    if (selectedLayerId) {
+      handleUpdateLayer(selectedLayerId, updates)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -306,6 +355,39 @@ export function TemplateWorkspace({ categoryId }: TemplateWorkspaceProps) {
 
         {/* Tab 2: Template Builder */}
         <TabsContent value="builder" className="space-y-4">
+          {/* Format Selector & Template Name */}
+          <div className="border rounded-lg p-4 bg-card space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Template Name</label>
+              <input
+                type="text"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder="Enter template name (e.g., Product Ad Template)"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+
+            <div>
+              <FormatSelector
+                value={selectedFormat}
+                onChange={(newFormat) => {
+                  if (hasChanges && currentTemplateId) {
+                    const confirmed = window.confirm(
+                      'You have unsaved changes. Switching formats will discard them. Continue?'
+                    )
+                    if (!confirmed) return
+                  }
+                  setSelectedFormat(newFormat)
+                }}
+                disabled={false}
+              />
+              <p className="text-sm text-muted-foreground mt-2">
+                Select a format to create or edit a template for that aspect ratio.
+              </p>
+            </div>
+          </div>
+
           <ToolbarTemplateBuilder
             onAddLayer={handleAddLayer}
             onAddSafeZone={handleAddSafeZone}
@@ -313,46 +395,42 @@ export function TemplateWorkspace({ categoryId }: TemplateWorkspaceProps) {
             onToggleGrid={() => setGridEnabled(!gridEnabled)}
             gridEnabled={gridEnabled}
             isSaving={isSaving}
-            hasChanges={hasChanges}
           />
 
           <div className="grid grid-cols-12 gap-4">
             {/* Left Panel: Layers */}
-            <div className="col-span-3">
+            <div className="col-span-2">
               <LayerPanel
                 layers={layers}
                 selectedLayerId={selectedLayerId}
-                onSelectLayer={setSelectedLayerId}
-                onUpdateLayer={handleUpdateLayer}
-                onDeleteLayer={handleDeleteLayer}
-                onReorderLayers={handleReorderLayers}
+                onLayerSelect={setSelectedLayerId}
+                onLayerUpdate={handleUpdateLayer}
+                onLayerDelete={handleDeleteLayer}
+                onLayerReorder={handleLayerReorder}
               />
             </div>
 
             {/* Center: Canvas */}
-            <div className="col-span-6">
+            <div className="col-span-8 min-h-[700px]">
               <TemplateBuilderCanvas
+                format={selectedFormat}
+                width={canvasWidth}
+                height={canvasHeight}
                 layers={layers}
                 safeZones={safeZones}
                 selectedLayerId={selectedLayerId}
-                selectedSafeZoneId={selectedSafeZoneId}
+                onLayerSelect={setSelectedLayerId}
                 onLayerUpdate={handleUpdateLayer}
-                onSafeZoneUpdate={handleUpdateSafeZone}
-                onSelectLayer={setSelectedLayerId}
-                onSelectSafeZone={setSelectedSafeZoneId}
-                guidelineImageUrl={selectedGuideline?.storage_url}
                 gridEnabled={gridEnabled}
                 gridSize={10}
               />
             </div>
 
             {/* Right Panel: Properties */}
-            <div className="col-span-3">
+            <div className="col-span-2">
               <PropertiesPanel
-                selectedLayer={selectedLayer}
-                selectedSafeZone={selectedSafeZone}
-                onUpdateLayer={handleUpdateLayer}
-                onUpdateSafeZone={handleUpdateSafeZone}
+                layer={selectedLayer}
+                onLayerUpdate={handleSelectedLayerUpdate}
               />
             </div>
           </div>

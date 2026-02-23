@@ -108,6 +108,7 @@ export async function POST(
       .from('products')
       .insert({
         category_id: categoryId,
+        user_id: user.id, // Required for RLS policy
         name: body.name.trim(),
         slug,
         description: body.description?.trim() || null,

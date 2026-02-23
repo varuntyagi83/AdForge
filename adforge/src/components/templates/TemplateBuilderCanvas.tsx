@@ -1,383 +1,332 @@
 'use client'
 
-import { useRef, useEffect, useState } from 'react'
-import { Stage, Layer, Rect, Text, Transformer } from 'react-konva'
-import Konva from 'konva'
-import { KonvaEventObject } from 'konva/lib/Node'
+import { useRef, useEffect } from 'react'
+import * as fabric from 'fabric'
+import type { TemplateLayer, SafeZone } from '@/lib/types/template'
 
-// Canvas dimensions (fixed 1:1 format)
-const CANVAS_WIDTH = 1080
-const CANVAS_HEIGHT = 1080
-
-export interface TemplateLayer {
-  id: string
-  type: 'background' | 'product' | 'text' | 'logo'
-  name?: string
-  x: number // percentage (0-100)
-  y: number // percentage (0-100)
-  width: number // percentage (0-100)
-  height: number // percentage (0-100)
-  z_index: number
-  locked: boolean
-  // Text-specific properties
-  font_size?: number
-  font_family?: string
-  color?: string
-  text_align?: 'left' | 'center' | 'right'
-  // Logo-specific properties
-  position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
-  padding?: number
-}
-
-export interface SafeZone {
-  id: string
-  name: string
-  x: number // percentage (0-100)
-  y: number // percentage (0-100)
-  width: number // percentage (0-100)
-  height: number // percentage (0-100)
-  type: 'safe' | 'restricted'
-  color: string
-}
+// Re-export types for use by parent components
+export type { TemplateLayer, SafeZone }
 
 interface TemplateBuilderCanvasProps {
+  format: string
+  width: number
+  height: number
   layers: TemplateLayer[]
   safeZones: SafeZone[]
   selectedLayerId: string | null
-  selectedSafeZoneId: string | null
-  onLayerUpdate: (id: string, updates: Partial<TemplateLayer>) => void
-  onSafeZoneUpdate: (id: string, updates: Partial<SafeZone>) => void
-  onSelectLayer: (id: string | null) => void
-  onSelectSafeZone: (id: string | null) => void
-  guidelineImageUrl?: string
+  onLayerSelect: (layerId: string | null) => void
+  onLayerUpdate: (layerId: string, updates: Partial<TemplateLayer>) => void
   gridEnabled?: boolean
   gridSize?: number
 }
 
+// Extend fabric objects to include custom data
+interface CustomFabricObject extends fabric.FabricObject {
+  customData?: {
+    isGrid?: boolean
+    isSafeZone?: boolean
+    isLayer?: boolean
+    isLabel?: boolean
+    layerId?: string
+    zoneId?: string
+  }
+}
+
 export function TemplateBuilderCanvas({
+  format,
+  width,
+  height,
   layers,
   safeZones,
   selectedLayerId,
-  selectedSafeZoneId,
+  onLayerSelect,
   onLayerUpdate,
-  onSafeZoneUpdate,
-  onSelectLayer,
-  onSelectSafeZone,
-  guidelineImageUrl,
   gridEnabled = true,
-  gridSize = 10,
+  gridSize = 50,
 }: TemplateBuilderCanvasProps) {
-  const stageRef = useRef<Konva.Stage>(null)
-  const transformerRef = useRef<Konva.Transformer>(null)
-  const [guidelineImage, setGuidelineImage] = useState<HTMLImageElement | null>(null)
-  const [displayScale, setDisplayScale] = useState(1)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const fabricCanvasRef = useRef<fabric.Canvas | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
-  // Load guideline image
+  // Initialize Fabric.js canvas
   useEffect(() => {
-    if (guidelineImageUrl) {
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      img.onload = () => setGuidelineImage(img)
-      img.src = guidelineImageUrl
-    } else {
-      setGuidelineImage(null)
+    if (!canvasRef.current || !containerRef.current) return
+
+    const container = containerRef.current
+    const containerWidth = container.clientWidth
+    const containerHeight = container.clientHeight
+
+    // Calculate scale to fit canvas in container
+    const scaleX = containerWidth / width
+    const scaleY = containerHeight / height
+    const scale = Math.min(scaleX, scaleY, 1) * 0.95 // 95% to add minimal padding
+
+    const canvasWidth = width * scale
+    const canvasHeight = height * scale
+
+    // Initialize Fabric canvas
+    const canvas = new fabric.Canvas(canvasRef.current, {
+      width: canvasWidth,
+      height: canvasHeight,
+      backgroundColor: '#f3f4f6',
+      selection: true,
+    })
+
+    fabricCanvasRef.current = canvas
+
+    // Cleanup
+    return () => {
+      canvas.dispose()
+      fabricCanvasRef.current = null
     }
-  }, [guidelineImageUrl])
+  }, [width, height])
 
-  // Calculate display scale to fit canvas in viewport
+  // Draw grid
   useEffect(() => {
-    const updateScale = () => {
-      const container = stageRef.current?.container()
-      if (container) {
-        const containerWidth = container.offsetWidth
-        const scale = Math.min(containerWidth / CANVAS_WIDTH, 1)
-        setDisplayScale(scale)
+    const canvas = fabricCanvasRef.current
+    if (!canvas || !gridEnabled) return
+
+    const canvasWidth = canvas.getWidth()
+    const canvasHeight = canvas.getHeight()
+
+    // Remove existing grid lines
+    const objects = canvas.getObjects()
+    objects.forEach((obj) => {
+      const customObj = obj as CustomFabricObject
+      if (customObj.customData?.isGrid) {
+        canvas.remove(obj)
+      }
+    })
+
+    // Draw vertical grid lines
+    for (let i = 0; i <= width / gridSize; i++) {
+      const line = new fabric.Line(
+        [i * gridSize * (canvasWidth / width), 0, i * gridSize * (canvasWidth / width), canvasHeight],
+        {
+          stroke: '#9ca3af',
+          strokeWidth: 1.5,
+          selectable: false,
+          evented: false,
+          opacity: 0.8,
+        }
+      ) as CustomFabricObject
+      line.customData = { isGrid: true }
+      canvas.add(line)
+    }
+
+    // Draw horizontal grid lines
+    for (let i = 0; i <= height / gridSize; i++) {
+      const line = new fabric.Line(
+        [0, i * gridSize * (canvasHeight / height), canvasWidth, i * gridSize * (canvasHeight / height)],
+        {
+          stroke: '#9ca3af',
+          strokeWidth: 1.5,
+          selectable: false,
+          evented: false,
+          opacity: 0.8,
+        }
+      ) as CustomFabricObject
+      line.customData = { isGrid: true }
+      canvas.add(line)
+    }
+
+    // Move grid lines to back
+    const gridLines = objects.filter((obj) => (obj as CustomFabricObject).customData?.isGrid)
+    gridLines.forEach((line) => canvas.sendObjectToBack(line))
+    canvas.renderAll()
+  }, [gridEnabled, gridSize, width, height])
+
+  // Draw safe zones
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const canvasWidth = canvas.getWidth()
+
+    // Remove existing safe zones
+    const objects = canvas.getObjects()
+    objects.forEach((obj) => {
+      const customObj = obj as CustomFabricObject
+      if (customObj.customData?.isSafeZone) {
+        canvas.remove(obj)
+      }
+    })
+
+    // Draw safe zones
+    safeZones.forEach((zone) => {
+      const rect = new fabric.Rect({
+        left: (zone.x / 100) * canvasWidth,
+        top: (zone.y / 100) * canvasWidth * (height / width),
+        width: (zone.width / 100) * canvasWidth,
+        height: (zone.height / 100) * canvasWidth * (height / width),
+        fill: zone.color,
+        opacity: 0.3,
+        selectable: false,
+        evented: false,
+      }) as CustomFabricObject
+      rect.customData = { isSafeZone: true, zoneId: zone.id }
+      canvas.add(rect)
+    })
+
+    canvas.renderAll()
+  }, [safeZones, width, height])
+
+  // Draw layers
+  useEffect(() => {
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
+
+    const canvasWidth = canvas.getWidth()
+
+    // Remove existing layers
+    const objects = canvas.getObjects()
+    objects.forEach((obj) => {
+      const customObj = obj as CustomFabricObject
+      if (customObj.customData?.isLayer) {
+        canvas.remove(obj)
+      }
+    })
+
+    // Helper to get layer color
+    const getLayerColor = (type: TemplateLayer['type']): string => {
+      switch (type) {
+        case 'background':
+          return '#3b82f6' // blue
+        case 'product':
+          return '#8b5cf6' // purple
+        case 'text':
+          return '#f59e0b' // orange
+        case 'logo':
+          return '#10b981' // green
+        default:
+          return '#6b7280'
       }
     }
 
-    updateScale()
-    window.addEventListener('resize', updateScale)
-    return () => window.removeEventListener('resize', updateScale)
-  }, [])
+    // Draw layers
+    const sortedLayers = [...layers].sort((a, b) => a.z_index - b.z_index)
+    sortedLayers.forEach((layer) => {
+      const layerColor = getLayerColor(layer.type)
+      const isSelected = layer.id === selectedLayerId
 
-  // Update transformer when selection changes
+      const rect = new fabric.Rect({
+        left: (layer.x / 100) * canvasWidth,
+        top: (layer.y / 100) * canvasWidth * (height / width),
+        width: (layer.width / 100) * canvasWidth,
+        height: (layer.height / 100) * canvasWidth * (height / width),
+        fill: layerColor,
+        opacity: 0.5,
+        stroke: isSelected ? '#000' : layerColor,
+        strokeWidth: isSelected ? 2 : 1,
+        strokeDashArray: [10, 5],
+        selectable: !layer.locked,
+        hasControls: true,
+        hasBorders: true,
+        // Larger, more visible corner controls for easier resizing with trackpad
+        cornerSize: 16,
+        cornerColor: '#2563eb',
+        cornerStrokeColor: '#ffffff',
+        borderColor: '#2563eb',
+        cornerStyle: 'circle',
+        transparentCorners: false,
+        borderScaleFactor: 2,
+        padding: 5,
+      }) as CustomFabricObject
+
+      rect.customData = { isLayer: true, layerId: layer.id }
+
+      // Add layer name label
+      const label = new fabric.FabricText(layer.name || layer.type.toUpperCase(), {
+        left: (layer.x / 100) * canvasWidth + 5,
+        top: (layer.y / 100) * canvasWidth * (height / width) + 5,
+        fontSize: 12,
+        fill: '#000',
+        fontWeight: 'bold',
+        selectable: false,
+        evented: false,
+      }) as CustomFabricObject
+      label.customData = { isLayer: true, layerId: layer.id, isLabel: true }
+
+      canvas.add(rect)
+      canvas.add(label)
+    })
+
+    canvas.renderAll()
+  }, [layers, selectedLayerId, width, height, onLayerSelect, onLayerUpdate])
+
+  // Handle canvas events
   useEffect(() => {
-    const transformer = transformerRef.current
-    if (!transformer) return
+    const canvas = fabricCanvasRef.current
+    if (!canvas) return
 
-    const stage = stageRef.current
-    if (!stage) return
+    const canvasWidth = canvas.getWidth()
 
-    if (selectedLayerId) {
-      const node = stage.findOne(`#${selectedLayerId}`)
-      if (node) {
-        transformer.nodes([node])
+    // Handle selection
+    const handleSelectionCreated = (e: any) => {
+      const activeObject = e.selected?.[0] as CustomFabricObject | undefined
+      if (activeObject?.customData?.isLayer && activeObject.customData.layerId) {
+        onLayerSelect(activeObject.customData.layerId)
       }
-    } else if (selectedSafeZoneId) {
-      const node = stage.findOne(`#${selectedSafeZoneId}`)
-      if (node) {
-        transformer.nodes([node])
+    }
+
+    const handleSelectionUpdated = (e: any) => {
+      const activeObject = e.selected?.[0] as CustomFabricObject | undefined
+      if (activeObject?.customData?.isLayer && activeObject.customData.layerId) {
+        onLayerSelect(activeObject.customData.layerId)
       }
-    } else {
-      transformer.nodes([])
     }
-    transformer.getLayer()?.batchDraw()
-  }, [selectedLayerId, selectedSafeZoneId])
 
-  // Convert percentage to pixels
-  const toPixels = (percent: number, dimension: 'width' | 'height') => {
-    return (percent / 100) * (dimension === 'width' ? CANVAS_WIDTH : CANVAS_HEIGHT)
-  }
-
-  // Convert pixels to percentage
-  const toPercent = (pixels: number, dimension: 'width' | 'height') => {
-    return (pixels / (dimension === 'width' ? CANVAS_WIDTH : CANVAS_HEIGHT)) * 100
-  }
-
-  // Get layer color by type
-  const getLayerColor = (type: TemplateLayer['type']) => {
-    switch (type) {
-      case 'background':
-        return '#3b82f6' // blue
-      case 'product':
-        return '#8b5cf6' // purple
-      case 'text':
-        return '#f59e0b' // orange
-      case 'logo':
-        return '#10b981' // green
-      default:
-        return '#6b7280'
+    const handleSelectionCleared = () => {
+      onLayerSelect(null)
     }
-  }
 
-  // Handle layer drag
-  const handleLayerDragEnd = (layer: TemplateLayer, e: KonvaEventObject<DragEvent>) => {
-    if (layer.locked) return
+    // Handle object modification (drag/resize/rotate)
+    const handleObjectModified = (e: any) => {
+      const target = e.target as CustomFabricObject
+      if (target.customData?.isLayer && target.customData.layerId) {
+        const scaleX = target.scaleX || 1
+        const scaleY = target.scaleY || 1
 
-    const node = e.target
-    const x = toPercent(node.x(), 'width')
-    const y = toPercent(node.y(), 'height')
+        onLayerUpdate(target.customData.layerId, {
+          x: ((target.left || 0) / canvasWidth) * 100,
+          y: ((target.top || 0) / canvasWidth / (height / width)) * 100,
+          width: ((target.width || 0) * scaleX / canvasWidth) * 100,
+          height: ((target.height || 0) * scaleY / canvasWidth / (height / width)) * 100,
+        })
 
-    onLayerUpdate(layer.id, { x, y })
-  }
-
-  // Handle layer transform (resize)
-  const handleLayerTransformEnd = (layer: TemplateLayer, e: KonvaEventObject<Event>) => {
-    if (layer.locked) return
-
-    const node = e.target as Konva.Rect
-    const scaleX = node.scaleX()
-    const scaleY = node.scaleY()
-
-    // Reset scale and apply to width/height
-    node.scaleX(1)
-    node.scaleY(1)
-
-    const width = toPercent(node.width() * scaleX, 'width')
-    const height = toPercent(node.height() * scaleY, 'height')
-    const x = toPercent(node.x(), 'width')
-    const y = toPercent(node.y(), 'height')
-
-    onLayerUpdate(layer.id, { x, y, width, height })
-  }
-
-  // Handle safe zone drag
-  const handleSafeZoneDragEnd = (zone: SafeZone, e: KonvaEventObject<DragEvent>) => {
-    const node = e.target
-    const x = toPercent(node.x(), 'width')
-    const y = toPercent(node.y(), 'height')
-
-    onSafeZoneUpdate(zone.id, { x, y })
-  }
-
-  // Handle safe zone transform
-  const handleSafeZoneTransformEnd = (zone: SafeZone, e: KonvaEventObject<Event>) => {
-    const node = e.target as Konva.Rect
-    const scaleX = node.scaleX()
-    const scaleY = node.scaleY()
-
-    node.scaleX(1)
-    node.scaleY(1)
-
-    const width = toPercent(node.width() * scaleX, 'width')
-    const height = toPercent(node.height() * scaleY, 'height')
-    const x = toPercent(node.x(), 'width')
-    const y = toPercent(node.y(), 'height')
-
-    onSafeZoneUpdate(zone.id, { x, y, width, height })
-  }
-
-  // Handle canvas click (deselect)
-  const handleStageClick = (e: KonvaEventObject<MouseEvent>) => {
-    if (e.target === e.target.getStage()) {
-      onSelectLayer(null)
-      onSelectSafeZone(null)
+        // Reset scale
+        target.set({ scaleX: 1, scaleY: 1 })
+        canvas.renderAll()
+      }
     }
-  }
 
-  // Sort layers by z_index
-  const sortedLayers = [...layers].sort((a, b) => a.z_index - b.z_index)
+    canvas.on('selection:created', handleSelectionCreated)
+    canvas.on('selection:updated', handleSelectionUpdated)
+    canvas.on('selection:cleared', handleSelectionCleared)
+    canvas.on('object:modified', handleObjectModified)
+
+    return () => {
+      canvas.off('selection:created', handleSelectionCreated)
+      canvas.off('selection:updated', handleSelectionUpdated)
+      canvas.off('selection:cleared', handleSelectionCleared)
+      canvas.off('object:modified', handleObjectModified)
+    }
+  }, [onLayerSelect, onLayerUpdate, width, height])
 
   return (
-    <div className="border rounded-lg overflow-hidden bg-gray-50">
-      <div className="relative" style={{ width: '100%', aspectRatio: '1/1' }}>
-        <Stage
-          ref={stageRef}
-          width={CANVAS_WIDTH}
-          height={CANVAS_HEIGHT}
-          scaleX={displayScale}
-          scaleY={displayScale}
-          style={{
-            width: '100%',
-            height: '100%',
-          }}
-          onClick={handleStageClick}
-        >
-          {/* Background layer */}
-          <Layer>
-            {/* Grid */}
-            {gridEnabled && (
-              <>
-                {Array.from({ length: Math.ceil(CANVAS_WIDTH / gridSize) }).map((_, i) => (
-                  <Rect
-                    key={`grid-v-${i}`}
-                    x={i * gridSize}
-                    y={0}
-                    width={1}
-                    height={CANVAS_HEIGHT}
-                    fill="#e5e7eb"
-                  />
-                ))}
-                {Array.from({ length: Math.ceil(CANVAS_HEIGHT / gridSize) }).map((_, i) => (
-                  <Rect
-                    key={`grid-h-${i}`}
-                    x={0}
-                    y={i * gridSize}
-                    width={CANVAS_WIDTH}
-                    height={1}
-                    fill="#e5e7eb"
-                  />
-                ))}
-              </>
-            )}
+    <div
+      ref={containerRef}
+      className="relative w-full h-full bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center"
+    >
+      <canvas ref={canvasRef} />
 
-            {/* Guideline image (if uploaded) */}
-            {guidelineImage && (
-              <Rect
-                x={0}
-                y={0}
-                width={CANVAS_WIDTH}
-                height={CANVAS_HEIGHT}
-                fillPatternImage={guidelineImage}
-                fillPatternScaleX={CANVAS_WIDTH / guidelineImage.width}
-                fillPatternScaleY={CANVAS_HEIGHT / guidelineImage.height}
-                opacity={0.3}
-                listening={false}
-              />
-            )}
-
-            {/* Safe zones */}
-            {safeZones.map((zone) => (
-              <Rect
-                key={zone.id}
-                id={zone.id}
-                x={toPixels(zone.x, 'width')}
-                y={toPixels(zone.y, 'height')}
-                width={toPixels(zone.width, 'width')}
-                height={toPixels(zone.height, 'height')}
-                fill={zone.color}
-                opacity={0.25}
-                stroke={zone.color}
-                strokeWidth={2}
-                draggable
-                onDragEnd={(e) => handleSafeZoneDragEnd(zone, e)}
-                onTransformEnd={(e) => handleSafeZoneTransformEnd(zone, e)}
-                onClick={() => {
-                  onSelectSafeZone(zone.id)
-                  onSelectLayer(null)
-                }}
-              />
-            ))}
-
-            {/* Layer placeholders */}
-            {sortedLayers.map((layer) => {
-              const color = getLayerColor(layer.type)
-              const isSelected = layer.id === selectedLayerId
-
-              return (
-                <Rect
-                  key={layer.id}
-                  id={layer.id}
-                  x={toPixels(layer.x, 'width')}
-                  y={toPixels(layer.y, 'height')}
-                  width={toPixels(layer.width, 'width')}
-                  height={toPixels(layer.height, 'height')}
-                  fill={color}
-                  opacity={layer.type === 'background' ? 0.1 : 0.2}
-                  stroke={color}
-                  strokeWidth={isSelected ? 3 : 2}
-                  dash={[10, 5]}
-                  draggable={!layer.locked}
-                  onDragEnd={(e) => handleLayerDragEnd(layer, e)}
-                  onTransformEnd={(e) => handleLayerTransformEnd(layer, e)}
-                  onClick={() => {
-                    onSelectLayer(layer.id)
-                    onSelectSafeZone(null)
-                  }}
-                />
-              )
-            })}
-
-            {/* Layer labels */}
-            {sortedLayers.map((layer) => {
-              const color = getLayerColor(layer.type)
-              return (
-                <Text
-                  key={`label-${layer.id}`}
-                  x={toPixels(layer.x, 'width') + 5}
-                  y={toPixels(layer.y, 'height') + 5}
-                  text={layer.name || layer.type.toUpperCase()}
-                  fontSize={16}
-                  fontStyle="bold"
-                  fill={color}
-                  listening={false}
-                />
-              )
-            })}
-
-            {/* Safe zone labels */}
-            {safeZones.map((zone) => (
-              <Text
-                key={`label-${zone.id}`}
-                x={toPixels(zone.x, 'width') + 5}
-                y={toPixels(zone.y, 'height') + 5}
-                text={zone.name}
-                fontSize={14}
-                fontStyle="bold"
-                fill={zone.color}
-                listening={false}
-              />
-            ))}
-
-            {/* Transformer for resize handles */}
-            <Transformer
-              ref={transformerRef}
-              boundBoxFunc={(oldBox, newBox) => {
-                // Limit resize to canvas bounds
-                if (newBox.width < 20 || newBox.height < 20) {
-                  return oldBox
-                }
-                return newBox
-              }}
-            />
-          </Layer>
-        </Stage>
-      </div>
-
-      {/* Canvas info */}
-      <div className="px-4 py-2 bg-white border-t text-xs text-muted-foreground">
-        Canvas: {CANVAS_WIDTH}x{CANVAS_HEIGHT} (1:1) • Scale: {(displayScale * 100).toFixed(0)}%
-        {gridEnabled && ` • Grid: ${gridSize}px`}
+      {/* Canvas info overlay */}
+      <div className="absolute top-2 right-2 bg-white dark:bg-gray-800 px-3 py-1 rounded shadow text-xs">
+        <span className="font-mono font-semibold">{format}</span>
+        <span className="mx-2 text-muted-foreground">•</span>
+        <span className="text-muted-foreground">
+          {width}×{height}
+        </span>
       </div>
     </div>
   )

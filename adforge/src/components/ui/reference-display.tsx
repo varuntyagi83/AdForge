@@ -89,17 +89,20 @@ export function ReferenceDisplay({ text, className }: ReferenceDisplayProps) {
         if (ref.referenceType === 'brand-asset') {
           const { data } = await supabase
             .from('brand_assets')
-            .select('id, file_name, file_path, mime_type')
+            .select('id, file_name, file_path, mime_type, storage_url, storage_path')
             .eq('id', ref.referenceId)
             .single()
 
           if (data) {
+            // Use stored storage_url if available, otherwise generate from Supabase Storage
+            const preview = data.storage_url ||
+              supabase.storage.from('brand-assets').getPublicUrl(data.storage_path || data.file_path).data.publicUrl
+
             newReferences.set(key, {
               id: data.id,
               type: 'brand-asset',
               name: data.file_name,
-              preview: supabase.storage.from('brand-assets').getPublicUrl(data.file_path).data
-                .publicUrl,
+              preview,
               isImage: data.mime_type.startsWith('image/'),
             })
           }

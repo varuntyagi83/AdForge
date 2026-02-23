@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { uploadFile } from '@/lib/storage'
 
 // GET /api/categories/[id]/products/[productId]/images - List product images
 export async function GET(
@@ -92,10 +93,10 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verify product belongs to user's category
+    // Verify product belongs to user's category and get slugs
     const { data: product } = await supabase
       .from('products')
-      .select('*, category:categories!inner(user_id)')
+      .select('*, category:categories!inner(user_id, slug)')
       .eq('id', productId)
       .eq('category_id', categoryId)
       .eq('category.user_id', user.id)
@@ -105,13 +106,24 @@ export async function POST(
       return NextResponse.json({ error: 'Product not found' }, { status: 404 })
     }
 
+    // Get category slug
+    const categorySlug = product.category.slug
+
     // Get form data
     const formData = await request.formData()
     const files = formData.getAll('files') as File[]
+    const format = formData.get('format') as string | null // Aspect ratio (1:1, 4:5, 9:16, 16:9)
 
     if (files.length === 0) {
       return NextResponse.json({ error: 'No files provided' }, { status: 400 })
     }
+
+    if (!format) {
+      return NextResponse.json({ error: 'Format (aspect ratio) is required' }, { status: 400 })
+    }
+
+    // Convert format from "4:5" to "4x5" for folder naming
+    const formatFolder = format.replace(':', 'x')
 
     // Check if this is the first image (will be primary)
     const { count: existingCount } = await supabase
@@ -131,41 +143,46 @@ export async function POST(
         continue
       }
 
-      // Generate unique filename
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${user.id}/${productId}/${Date.now()}-${i}.${fileExt}`
+      // Generate filename following hierarchy:
+      // {category-slug}/{product-slug}/product-images/angled-shots/{aspect-ratio}/{filename}
+      const fileExt = file.name.split('.').pop() || 'jpg'
+      const timestamp = Date.now()
+      const sanitizedFileName = file.name
+        .replace(/\.[^/.]+$/, '') // Remove extension
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, '') // Remove special chars
+        .replace(/[\s_]+/g, '-') // Replace spaces/underscores with hyphens
+        .replace(/^-+|-+$/g, '') // Trim hyphens
 
-      // Upload to Supabase Storage
-      const { data: storageData, error: uploadError } = await supabase.storage
-        .from('product-images')
-        .upload(fileName, file, {
-          contentType: file.type,
-          upsert: false,
-        })
+      const storagePath = `${categorySlug}/${product.slug}/product-images/angled-shots/${formatFolder}/${sanitizedFileName}-${timestamp}.${fileExt}`
 
-      if (uploadError) {
-        console.error('Upload error:', uploadError)
-        continue
-      }
+      console.log(`📤 Uploading product image to Google Drive: ${storagePath}`)
 
-      // Get public URL
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from('product-images').getPublicUrl(fileName)
+      // Convert file to buffer
+      const buffer = Buffer.from(await file.arrayBuffer())
 
-      // Save to database with storage sync fields
+      // Upload to Google Drive
+      const storageFile = await uploadFile(buffer, storagePath, {
+        contentType: file.type,
+        provider: 'gdrive',
+      })
+
+      console.log(`✅ Upload successful! File ID: ${storageFile.fileId}`)
+
+      // Save to database with Google Drive storage sync fields
       const { data: imageRecord, error: dbError } = await supabase
         .from('product_images')
         .insert({
           product_id: productId,
           file_name: file.name,
-          file_path: fileName,
+          file_path: storagePath,
           file_size: file.size,
           mime_type: file.type,
           is_primary: isFirstImage && i === 0, // First image of first upload is primary
-          storage_provider: 'supabase',
-          storage_path: fileName,
-          storage_url: publicUrl,
+          storage_provider: 'gdrive',
+          storage_path: storagePath,
+          storage_url: storageFile.publicUrl,
+          gdrive_file_id: storageFile.fileId || null,
         })
         .select()
         .single()
@@ -173,7 +190,7 @@ export async function POST(
       if (!dbError && imageRecord) {
         uploadedImages.push({
           ...imageRecord,
-          public_url: publicUrl,
+          public_url: storageFile.publicUrl,
         })
       }
     }

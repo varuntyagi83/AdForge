@@ -64,7 +64,8 @@ export async function generateAngledShots(
   productImageData: string,
   productImageMimeType: string,
   angles: (typeof ANGLE_VARIATIONS)[number][],
-  lookAndFeel?: string
+  lookAndFeel?: string,
+  aspectRatio: string = '1:1' // NEW: Aspect ratio (1:1, 16:9, 9:16, 4:5)
 ): Promise<
   Array<{
     angleName: string
@@ -75,16 +76,12 @@ export async function generateAngledShots(
   }>
 > {
   try {
-    // Initialize Gemini model with image generation support
-    const model = getGenAI().getGenerativeModel({
-      model: 'gemini-3-pro-image-preview',
-      generationConfig: {
-        temperature: 0.55, // Balanced: enough variation for angles, but preserves product details
-        topP: 0.95,
-        maxOutputTokens: 32768,
-        responseModalities: ['TEXT', 'IMAGE'], // Type not yet in SDK, but supported by API
-      } as any,
-    })
+    const GEMINI_API_KEY = process.env.GOOGLE_GEMINI_API_KEY || ''
+    if (!GEMINI_API_KEY) {
+      throw new Error('GOOGLE_GEMINI_API_KEY environment variable is not set')
+    }
+
+    const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent'
 
     // Convert base64 image to proper format
     const base64Data = productImageData.replace(/^data:image\/\w+;base64,/, '')
@@ -93,7 +90,7 @@ export async function generateAngledShots(
     const results = []
 
     for (const angle of angles) {
-      console.log(`Generating ${angle.name} angle...`)
+      console.log(`Generating ${angle.name} angle for ${aspectRatio} format...`)
 
       // Create prompt for this specific angle
       const prompt = `Create a variation of this product image showing: ${angle.description}.
@@ -107,6 +104,7 @@ ${lookAndFeel ? `STYLE: ${lookAndFeel}\n\n` : ''}CRITICAL - DO NOT MODIFY THESE:
 ✓ Keep the same background color and lighting style
 ✓ Keep all props and surrounding objects in similar positions
 ✓ The product must maintain its correct orientation (right-side up) - NEVER flip or invert it
+✓ Output must be in ${aspectRatio} aspect ratio
 
 ONLY CHANGE THIS:
 ✗ Rotate the camera angle/viewpoint to: ${angle.description}
@@ -114,56 +112,68 @@ ONLY CHANGE THIS:
 
 Think of this as moving a camera around a stationary product on a turntable. The product stays the same, only your viewing angle changes.
 
-Return a high-quality professional product photograph from the new angle.`
+Return a high-quality professional product photograph from the new angle in ${aspectRatio} aspect ratio.`
 
       try {
-        const result = await model.generateContent([
-          {
-            inlineData: {
-              data: base64Data,
-              mimeType: productImageMimeType,
-            },
-          },
-          {
-            text: prompt,
-          },
-        ])
-
-        const response = await result.response
-
-        // Extract the generated image from the response
-        const candidates = response.candidates
-        if (candidates && candidates.length > 0) {
-          const parts = candidates[0].content.parts
-
-          // Find the image part
-          const imagePart = parts?.find((part: any) => part.inlineData)
-
-          if (imagePart && 'inlineData' in imagePart && imagePart.inlineData?.data) {
-            const generatedBase64 = imagePart.inlineData.data
-            const generatedMimeType = imagePart.inlineData.mimeType || 'image/jpeg'
-
-            results.push({
-              angleName: angle.name,
-              angleDescription: angle.description,
-              promptUsed: prompt,
-              imageData: `data:${generatedMimeType};base64,${generatedBase64}`,
-              mimeType: generatedMimeType,
-            })
-
-            console.log(`   ✅ ${angle.name} generated successfully`)
-          } else {
-            console.warn(`   ⚠️  No image in response for ${angle.name}, using original as fallback`)
-            results.push({
-              angleName: angle.name,
-              angleDescription: angle.description,
-              promptUsed: prompt,
-              imageData: productImageData,
-              mimeType: productImageMimeType,
-            })
+        // Build request body using direct REST API format
+        const requestBody = {
+          contents: [{
+            parts: [
+              {
+                inline_data: {
+                  data: base64Data,
+                  mime_type: productImageMimeType,
+                },
+              },
+              {
+                text: prompt,
+              },
+            ]
+          }],
+          generationConfig: {
+            temperature: 0.55, // Balanced: enough variation for angles, but preserves product details
+            topP: 0.95,
+            maxOutputTokens: 32768,
+            responseModalities: ['IMAGE'],
+            imageConfig: {
+              aspectRatio: aspectRatio, // ✅ Enforce aspect ratio
+              imageSize: '2K' // ✅ Control output resolution
+            }
           }
+        }
+
+        // Call Gemini API directly
+        const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(`Gemini API error: ${response.status} - ${errorText}`)
+        }
+
+        const data = await response.json()
+
+        // Extract base64 image from response
+        if (data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data) {
+          const generatedBase64 = data.candidates[0].content.parts[0].inlineData.data
+          const generatedMimeType = data.candidates[0].content.parts[0].inlineData.mimeType || 'image/jpeg'
+
+          results.push({
+            angleName: angle.name,
+            angleDescription: angle.description,
+            promptUsed: prompt,
+            imageData: `data:${generatedMimeType};base64,${generatedBase64}`,
+            mimeType: generatedMimeType,
+          })
+
+          console.log(`   ✅ ${angle.name} generated successfully in ${aspectRatio} format`)
         } else {
-          console.warn(`   ⚠️  No candidates in response for ${angle.name}, using original as fallback`)
+          console.warn(`   ⚠️  No image in response for ${angle.name}, using original as fallback`)
           results.push({
             angleName: angle.name,
             angleDescription: angle.description,
@@ -194,13 +204,15 @@ Return a high-quality professional product photograph from the new angle.`
 
 /**
  * Generate backgrounds matching category style using Gemini
- * For Phase 3: Background Generation
+ * For Phase 3: Background Generation (updated for multi-format support)
  */
 export async function generateBackgrounds(
   userPrompt: string,
   lookAndFeel: string,
   count: number = 1,
-  styleReferenceImages?: Array<{ data: string; mimeType: string }>
+  styleReferenceImages?: Array<{ data: string; mimeType: string }>,
+  aspectRatio: string = '1:1', // NEW: Aspect ratio (1:1, 16:9, 9:16, 4:5)
+  imageSize: string = '2K' // NEW: Image size (2K, 4K)
 ): Promise<
   Array<{
     promptUsed: string
@@ -209,24 +221,19 @@ export async function generateBackgrounds(
   }>
 > {
   try {
-    // Initialize Gemini model with image generation support
-    const model = getGenAI().getGenerativeModel({
-      model: 'gemini-3-pro-image-preview',
-      generationConfig: {
-        temperature: 0.7, // Higher for creative backgrounds
-        topP: 0.95,
-        maxOutputTokens: 32768,
-        responseModalities: ['TEXT', 'IMAGE'],
-      } as any,
-    })
+    const GEMINI_API_KEY = process.env.GOOGLE_GEMINI_API_KEY || ''
+    if (!GEMINI_API_KEY) {
+      throw new Error('GOOGLE_GEMINI_API_KEY environment variable is not set')
+    }
 
+    const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent'
     const results = []
 
     for (let i = 0; i < count; i++) {
-      console.log(`Generating background ${i + 1}/${count}...`)
+      console.log(`Generating ${aspectRatio} background ${i + 1}/${count}...`)
 
       // Build the background generation prompt
-      const prompt = `Generate a high-quality product photography background with the following characteristics:
+      const prompt = `Generate a high-quality product photography background in ${aspectRatio} aspect ratio with the following characteristics:
 
 Category Style: ${lookAndFeel}
 User Request: ${userPrompt}
@@ -237,7 +244,7 @@ CRITICAL INSTRUCTIONS:
 - Leave clear space in the center/foreground for a product to be placed
 - Match the lighting style to the category aesthetic
 - Professional, studio-quality output suitable for e-commerce
-- Resolution: High quality, suitable for 4K output
+- Aspect ratio: ${aspectRatio} (strictly enforced)
 - The scene should feel natural and inviting
 - Consider depth of field, lighting, and composition
 - Make it visually appealing and aligned with modern product photography trends
@@ -254,9 +261,9 @@ Return a professional product photography background.`
           for (const refImage of styleReferenceImages) {
             const base64Data = refImage.data.replace(/^data:image\/\w+;base64,/, '')
             contentParts.push({
-              inlineData: {
+              inline_data: {
                 data: base64Data,
-                mimeType: refImage.mimeType,
+                mime_type: refImage.mimeType,
               },
             })
           }
@@ -265,38 +272,57 @@ Return a professional product photography background.`
         // Add the text prompt
         contentParts.push({ text: prompt })
 
-        const result = await model.generateContent(contentParts)
-        const response = await result.response
-
-        // Extract the generated image from the response
-        const candidates = response.candidates
-        if (candidates && candidates.length > 0) {
-          const parts = candidates[0].content.parts
-
-          // Find the image part
-          const imagePart = parts?.find((part: any) => part.inlineData)
-
-          if (imagePart && 'inlineData' in imagePart && imagePart.inlineData?.data) {
-            const generatedBase64 = imagePart.inlineData.data
-            const generatedMimeType = imagePart.inlineData.mimeType || 'image/jpeg'
-
-            results.push({
-              promptUsed: prompt,
-              imageData: `data:${generatedMimeType};base64,${generatedBase64}`,
-              mimeType: generatedMimeType,
-            })
-
-            console.log(`   ✅ Background ${i + 1} generated successfully`)
-          } else {
-            console.warn(`   ⚠️  No image in response for background ${i + 1}`)
-            throw new Error('No image generated in response')
+        // Build request body using direct REST API format
+        const requestBody = {
+          contents: [{
+            parts: contentParts
+          }],
+          generationConfig: {
+            temperature: 0.7, // Higher for creative backgrounds
+            topP: 0.95,
+            maxOutputTokens: 32768,
+            responseModalities: ['IMAGE'],
+            imageConfig: {
+              aspectRatio: aspectRatio, // ✅ Enforce aspect ratio
+              imageSize: imageSize // ✅ Control output resolution
+            }
           }
+        }
+
+        // Call Gemini API directly
+        const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(`Gemini API error: ${response.status} - ${errorText}`)
+        }
+
+        const data = await response.json()
+
+        // Extract base64 image from response
+        if (data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data) {
+          const generatedBase64 = data.candidates[0].content.parts[0].inlineData.data
+          const generatedMimeType = data.candidates[0].content.parts[0].inlineData.mimeType || 'image/jpeg'
+
+          results.push({
+            promptUsed: prompt,
+            imageData: `data:${generatedMimeType};base64,${generatedBase64}`,
+            mimeType: generatedMimeType,
+          })
+
+          console.log(`   ✅ ${aspectRatio} background ${i + 1} generated successfully`)
         } else {
-          console.warn(`   ⚠️  No candidates in response for background ${i + 1}`)
-          throw new Error('No candidates in response')
+          console.warn(`   ⚠️  No image in response for background ${i + 1}`)
+          throw new Error('No image generated in response')
         }
       } catch (error) {
-        console.error(`   ❌ Error generating background ${i + 1}:`, error)
+        console.error(`   ❌ Error generating ${aspectRatio} background ${i + 1}:`, error)
         throw error
       }
     }
@@ -310,12 +336,13 @@ Return a professional product photography background.`
 
 /**
  * Generate composite image by combining product and background
- * For Phase 3: Product × Background Composites
+ * For Phase 4: Format-aware composite generation
  *
  * This creates a natural-looking composite where:
  * - Product appearance is preserved (labels, branding, colors)
  * - Background scene/model is preserved
  * - Gemini intelligently places product in scene with natural lighting/shadows
+ * - Supports multiple aspect ratios (1:1, 16:9, 9:16, 4:5)
  */
 export async function generateComposite(
   productImageData: string,
@@ -332,24 +359,28 @@ export async function generateComposite(
     width: number
     height: number
     type: 'safe' | 'restricted'
-  }>
+  }>,
+  canvasWidth: number = 1080, // NEW: Canvas width (default 1:1)
+  canvasHeight: number = 1080 // NEW: Canvas height (default 1:1)
 ): Promise<{
   promptUsed: string
   imageData: string
   mimeType: string
 }> {
   try {
-    console.log('Generating composite with Gemini...')
+    // Calculate aspect ratio from canvas dimensions
+    const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b)
+    const divisor = gcd(canvasWidth, canvasHeight)
+    const aspectRatio = `${canvasWidth / divisor}:${canvasHeight / divisor}`
 
-    const model = getGenAI().getGenerativeModel({
-      model: 'gemini-3-pro-image-preview',
-      generationConfig: {
-        temperature: 0.4, // Lower temperature for precise compositing
-        topP: 0.9,
-        maxOutputTokens: 32768,
-        responseModalities: ['TEXT', 'IMAGE'],
-      } as any,
-    })
+    console.log(`Generating composite with Gemini (${canvasWidth}x${canvasHeight}, aspect ratio: ${aspectRatio})...`)
+
+    const GEMINI_API_KEY = process.env.GOOGLE_GEMINI_API_KEY || ''
+    if (!GEMINI_API_KEY) {
+      throw new Error('GOOGLE_GEMINI_API_KEY environment variable is not set')
+    }
+
+    const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent'
 
     // Build safe zone instructions if provided
     let safeZoneInstructions = ''
@@ -358,12 +389,18 @@ export async function generateComposite(
       const restrictedZones = safeZones.filter(z => z.type === 'restricted')
 
       if (productSafeZone) {
+        // Calculate pixel values based on canvas dimensions
+        const leftPx = Math.round((productSafeZone.x / 100) * canvasWidth)
+        const topPx = Math.round((productSafeZone.y / 100) * canvasHeight)
+        const widthPx = Math.round((productSafeZone.width / 100) * canvasWidth)
+        const heightPx = Math.round((productSafeZone.height / 100) * canvasHeight)
+
         safeZoneInstructions += `\n🎯 PRODUCT PLACEMENT ZONE (CRITICAL):
-Position the product within these coordinates on a 1080x1080 canvas:
-- Left edge: ${productSafeZone.x}% from left (${Math.round(productSafeZone.x * 10.8)}px)
-- Top edge: ${productSafeZone.y}% from top (${Math.round(productSafeZone.y * 10.8)}px)
-- Width: ${productSafeZone.width}% (${Math.round(productSafeZone.width * 10.8)}px)
-- Height: ${productSafeZone.height}% (${Math.round(productSafeZone.height * 10.8)}px)
+Position the product within these coordinates on a ${canvasWidth}x${canvasHeight} canvas:
+- Left edge: ${productSafeZone.x}% from left (${leftPx}px)
+- Top edge: ${productSafeZone.y}% from top (${topPx}px)
+- Width: ${productSafeZone.width}% (${widthPx}px)
+- Height: ${productSafeZone.height}% (${heightPx}px)
 
 The ENTIRE product must fit within this zone. Do not let any part of the product extend outside these boundaries.\n`
       }
@@ -421,49 +458,71 @@ Return a professional, advertisement-quality composite image.`
     // Add product image
     const productBase64 = productImageData.replace(/^data:image\/\w+;base64,/, '')
     contentParts.push({
-      inlineData: {
+      inline_data: {
         data: productBase64,
-        mimeType: productImageMimeType,
+        mime_type: productImageMimeType,
       },
     })
 
     // Add background image
     const backgroundBase64 = backgroundImageData.replace(/^data:image\/\w+;base64,/, '')
     contentParts.push({
-      inlineData: {
+      inline_data: {
         data: backgroundBase64,
-        mimeType: backgroundImageMimeType,
+        mime_type: backgroundImageMimeType,
       },
     })
 
     // Add the text prompt
     contentParts.push({ text: prompt })
 
-    const result = await model.generateContent(contentParts)
-    const response = await result.response
-
-    // Extract the generated image from the response
-    const candidates = response.candidates
-    if (candidates && candidates.length > 0) {
-      const parts = candidates[0].content.parts
-      const imagePart = parts?.find((part: any) => part.inlineData)
-
-      if (imagePart && 'inlineData' in imagePart && imagePart.inlineData?.data) {
-        const generatedBase64 = imagePart.inlineData.data
-        const generatedMimeType = imagePart.inlineData.mimeType || 'image/jpeg'
-
-        console.log('   ✅ Composite generated successfully')
-
-        return {
-          promptUsed: prompt,
-          imageData: `data:${generatedMimeType};base64,${generatedBase64}`,
-          mimeType: generatedMimeType,
+    // Build request body using direct REST API format
+    const requestBody = {
+      contents: [{
+        parts: contentParts
+      }],
+      generationConfig: {
+        temperature: 0.4, // Lower temperature for precise compositing
+        topP: 0.9,
+        maxOutputTokens: 32768,
+        responseModalities: ['IMAGE'],
+        imageConfig: {
+          aspectRatio: aspectRatio, // ✅ Enforce aspect ratio (calculated from canvas dimensions)
+          imageSize: '2K' // ✅ Control output resolution
         }
-      } else {
-        throw new Error('No image in composite response')
+      }
+    }
+
+    // Call Gemini API directly
+    const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Gemini API error: ${response.status} - ${errorText}`)
+    }
+
+    const data = await response.json()
+
+    // Extract base64 image from response
+    if (data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data) {
+      const generatedBase64 = data.candidates[0].content.parts[0].inlineData.data
+      const generatedMimeType = data.candidates[0].content.parts[0].inlineData.mimeType || 'image/jpeg'
+
+      console.log(`   ✅ ${aspectRatio} composite generated successfully`)
+
+      return {
+        promptUsed: prompt,
+        imageData: `data:${generatedMimeType};base64,${generatedBase64}`,
+        mimeType: generatedMimeType,
       }
     } else {
-      throw new Error('No candidates in composite response')
+      throw new Error('No image in composite response')
     }
   } catch (error) {
     console.error('Error generating composite:', error)

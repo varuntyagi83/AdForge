@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { uploadFile } from '@/lib/storage'
+import { formatToFolderName, getFormatDimensions } from '@/lib/formats'
 
 // Helper to generate slug from name
 function generateSlug(name: string): string {
@@ -15,6 +16,7 @@ function generateSlug(name: string): string {
 /**
  * GET /api/categories/[id]/backgrounds
  * Lists all backgrounds for a category
+ * Optional query param: ?format=1:1 to filter by format
  */
 export async function GET(
   request: NextRequest,
@@ -45,12 +47,24 @@ export async function GET(
       return NextResponse.json({ error: 'Category not found' }, { status: 404 })
     }
 
-    // Get all backgrounds for this category
-    const { data: backgrounds, error } = await supabase
+    // Get optional format filter from query params
+    const { searchParams } = new URL(request.url)
+    const formatFilter = searchParams.get('format')
+
+    // Build query
+    let query = supabase
       .from('backgrounds')
       .select('*')
       .eq('category_id', categoryId)
-      .order('created_at', { ascending: false })
+
+    // Apply format filter if provided
+    if (formatFilter) {
+      query = query.eq('format', formatFilter)
+      console.log(`Filtering backgrounds by format: ${formatFilter}`)
+    }
+
+    // Execute query
+    const { data: backgrounds, error } = await query.order('created_at', { ascending: false })
 
     if (error) {
       console.error('Error fetching backgrounds:', error)
@@ -127,7 +141,23 @@ export async function POST(
 
     // Get request body
     const body = await request.json()
-    const { name, description, promptUsed, imageData, mimeType } = body
+    const {
+      name,
+      description,
+      promptUsed,
+      imageData,
+      mimeType,
+      format = '1:1', // NEW: Format parameter
+      width,
+      height
+    } = body
+
+    // Get format dimensions (use provided width/height or defaults from format config)
+    const formatDimensions = getFormatDimensions(format)
+    const finalWidth = width || formatDimensions.width
+    const finalHeight = height || formatDimensions.height
+
+    console.log(`Saving ${format} background: ${finalWidth}x${finalHeight}`)
 
     // Validate required fields
     if (!name || !imageData) {
@@ -159,18 +189,19 @@ export async function POST(
     const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '')
     const buffer = Buffer.from(base64Data, 'base64')
 
-    // Generate filename using human-readable folder names (slugs)
+    // Generate filename using format-specific folder (x-notation for filesystem)
+    const folderName = formatToFolderName(format)
     const fileExt = mimeType?.split('/')[1] || 'jpg'
-    const fileName = `${category.slug}/backgrounds/${slug}_${Date.now()}.${fileExt}`
+    const fileName = `${category.slug}/backgrounds/${folderName}/${slug}_${Date.now()}.${fileExt}`
 
     // Upload to Google Drive
-    console.log(`Uploading background to Google Drive: ${fileName}`)
+    console.log(`Uploading ${format} background to Google Drive (folder: ${folderName}): ${fileName}`)
     const storageFile = await uploadFile(buffer, fileName, {
       contentType: mimeType || 'image/jpeg',
       provider: 'gdrive',
     })
 
-    // Save to database with storage sync fields
+    // Save to database with storage sync fields + format info
     const { data: background, error: dbError } = await supabase
       .from('backgrounds')
       .insert({
@@ -180,6 +211,9 @@ export async function POST(
         slug,
         description: description || null,
         prompt_used: promptUsed || null,
+        format, // NEW: Format field
+        width: finalWidth, // NEW: Width field
+        height: finalHeight, // NEW: Height field
         storage_provider: 'gdrive',
         storage_path: storageFile.path,
         storage_url: storageFile.publicUrl,

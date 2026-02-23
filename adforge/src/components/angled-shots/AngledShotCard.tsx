@@ -11,13 +11,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { MoreVertical, Trash2, Download, Eye } from 'lucide-react'
 import { toast } from 'sonner'
-import Image from 'next/image'
 
 interface AngledShotCardProps {
   angledShot: {
     id: string
     angle_name: string
     angle_description: string
+    display_name: string // Product-prefixed display name
     prompt_used: string | null
     storage_path: string
     storage_url: string
@@ -43,7 +43,7 @@ export function AngledShotCard({
   onDeleted,
 }: AngledShotCardProps) {
   const [deleting, setDeleting] = useState(false)
-  const [imageLoaded, setImageLoaded] = useState(false)
+  const [imageError, setImageError] = useState(false)
 
   const handleDelete = async () => {
     if (!confirm(`Delete ${angledShot.angle_description}?`)) {
@@ -95,13 +95,6 @@ export function AngledShotCard({
     window.open(angledShot.public_url, '_blank')
   }
 
-  const formatAngleName = (name: string) => {
-    return name
-      .split('_')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ')
-  }
-
   return (
     <Card className="group hover:shadow-md transition-shadow">
       <CardContent className="p-4">
@@ -109,38 +102,41 @@ export function AngledShotCard({
           className="aspect-square mb-3 rounded-md bg-muted flex items-center justify-center overflow-hidden relative cursor-pointer"
           onClick={handleView}
         >
-          {!imageLoaded && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="animate-pulse text-muted-foreground">Loading...</div>
+          {imageError ? (
+            <div className="text-center text-muted-foreground">
+              <Eye className="h-12 w-12 mx-auto mb-2" />
+              <p className="text-xs">Failed to load</p>
+              <p className="text-xs mt-1 text-primary">Click to view</p>
             </div>
+          ) : (
+            <>
+              <img
+                src={angledShot.public_url}
+                alt={angledShot.angle_description}
+                className="w-full h-full object-cover"
+                onError={() => {
+                  console.error('Failed to load image:', angledShot.public_url)
+                  setImageError(true)
+                }}
+              />
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button size="sm" variant="secondary">
+                    <Eye className="h-4 w-4 mr-1" />
+                    View Full Size
+                  </Button>
+                </div>
+              </div>
+            </>
           )}
-          <img
-            src={angledShot.public_url}
-            alt={angledShot.angle_description}
-            className={`w-full h-full object-cover transition-opacity ${
-              imageLoaded ? 'opacity-100' : 'opacity-0'
-            }`}
-            onLoad={() => setImageLoaded(true)}
-          />
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-              <Button size="sm" variant="secondary">
-                <Eye className="h-4 w-4 mr-1" />
-                View Full Size
-              </Button>
-            </div>
-          </div>
         </div>
 
         <div className="space-y-2">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <h3 className="font-medium line-clamp-1">
-                {formatAngleName(angledShot.angle_name)}
+                {angledShot.display_name || `${angledShot.product.name}_${angledShot.angle_name}`}
               </h3>
-              <p className="text-xs text-muted-foreground line-clamp-1">
-                {angledShot.product.name}
-              </p>
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

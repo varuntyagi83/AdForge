@@ -18,6 +18,7 @@ interface ManageProductImagesDialogProps {
   categoryId: string
   productId: string
   productName: string
+  format: string // Aspect ratio (1:1, 4:5, 9:16, 16:9)
 }
 
 export function ManageProductImagesDialog({
@@ -26,6 +27,7 @@ export function ManageProductImagesDialog({
   categoryId,
   productId,
   productName,
+  format,
 }: ManageProductImagesDialogProps) {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
@@ -62,6 +64,7 @@ export function ManageProductImagesDialog({
             <ProductImageUpload
               categoryId={categoryId}
               productId={productId}
+              format={format}
               onUploadComplete={handleUploadComplete}
             />
           </TabsContent>

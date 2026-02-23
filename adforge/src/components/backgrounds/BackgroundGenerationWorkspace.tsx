@@ -22,10 +22,12 @@ interface GeneratedBackground {
 
 interface BackgroundGenerationWorkspaceProps {
   category: Category
+  format?: string // NEW: Format filter
 }
 
 export function BackgroundGenerationWorkspace({
   category,
+  format = '1:1', // NEW: Default to 1:1
 }: BackgroundGenerationWorkspaceProps) {
   const [generatedBackgrounds, setGeneratedBackgrounds] = useState<
     GeneratedBackground[]
@@ -61,6 +63,7 @@ export function BackgroundGenerationWorkspace({
       {/* Generation Form */}
       <BackgroundGenerationForm
         category={category}
+        format={format}
         onBackgroundsGenerated={handleBackgroundsGenerated}
         onGeneratingChange={setIsGenerating}
       />
@@ -71,6 +74,7 @@ export function BackgroundGenerationWorkspace({
           backgrounds={generatedBackgrounds}
           categoryId={category.id}
           categorySlug={category.slug}
+          format={format}
           onBackgroundSaved={handleBackgroundSaved}
           onClearAll={handleClearPreviews}
         />
@@ -84,6 +88,7 @@ export function BackgroundGenerationWorkspace({
         <TabsContent value="gallery" className="mt-6">
           <BackgroundGallery
             categoryId={category.id}
+            format={format}
             refreshTrigger={refreshKey}
           />
         </TabsContent>

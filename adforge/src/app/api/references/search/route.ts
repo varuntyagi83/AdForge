@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     // Search brand assets
     const { data: brandAssets } = await supabase
       .from('brand_assets')
-      .select('id, file_name, file_path, mime_type')
+      .select('id, file_name, file_path, mime_type, storage_url, storage_path')
       .eq('user_id', user.id)
       .ilike('file_name', `%${query}%`)
       .limit(5)
@@ -34,14 +34,19 @@ export async function GET(request: NextRequest) {
       .limit(5)
 
     // Format results
-    const brandAssetResults = (brandAssets || []).map((asset) => ({
-      id: asset.id,
-      type: 'brand-asset' as const,
-      name: asset.file_name,
-      preview: supabase.storage.from('brand-assets').getPublicUrl(asset.file_path).data
-        .publicUrl,
-      isImage: asset.mime_type.startsWith('image/'),
-    }))
+    const brandAssetResults = (brandAssets || []).map((asset) => {
+      // Use stored storage_url if available, otherwise generate from Supabase Storage
+      const preview = asset.storage_url ||
+        supabase.storage.from('brand-assets').getPublicUrl(asset.storage_path || asset.file_path).data.publicUrl
+
+      return {
+        id: asset.id,
+        type: 'brand-asset' as const,
+        name: asset.file_name,
+        preview,
+        isImage: asset.mime_type.startsWith('image/'),
+      }
+    })
 
     const productResults = (products || []).map((product: any) => ({
       id: product.id,

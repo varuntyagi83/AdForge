@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { RefreshCcw, Sparkles } from 'lucide-react'
 import { AngledShotCard } from './AngledShotCard'
+import { GenerateAngledShotsDialog } from './GenerateAngledShotsDialog'
 import { toast } from 'sonner'
 import {
   Select,
@@ -17,6 +18,7 @@ interface AngledShot {
   id: string
   angle_name: string
   angle_description: string
+  display_name: string // Product-prefixed display name
   prompt_used: string | null
   storage_path: string
   storage_url: string
@@ -41,9 +43,10 @@ interface Product {
 
 interface AngledShotsListProps {
   categoryId: string
+  format?: string // NEW: Format filter
 }
 
-export function AngledShotsList({ categoryId }: AngledShotsListProps) {
+export function AngledShotsList({ categoryId, format }: AngledShotsListProps) {
   const [angledShots, setAngledShots] = useState<AngledShot[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -51,9 +54,12 @@ export function AngledShotsList({ categoryId }: AngledShotsListProps) {
 
   const fetchAngledShots = async (productId?: string) => {
     try {
-      const url = productId
-        ? `/api/categories/${categoryId}/angled-shots?productId=${productId}`
-        : `/api/categories/${categoryId}/angled-shots`
+      // Build URL with optional productId and format filters
+      const params = new URLSearchParams()
+      if (productId) params.append('productId', productId)
+      if (format) params.append('format', format)
+
+      const url = `/api/categories/${categoryId}/angled-shots${params.toString() ? `?${params.toString()}` : ''}`
 
       const response = await fetch(url)
       const data = await response.json()
@@ -86,7 +92,7 @@ export function AngledShotsList({ categoryId }: AngledShotsListProps) {
   useEffect(() => {
     fetchProducts()
     fetchAngledShots()
-  }, [categoryId])
+  }, [categoryId, format]) // NEW: Added format to dependencies
 
   const handleProductFilter = (productId: string) => {
     setSelectedProductId(productId)
@@ -129,7 +135,7 @@ export function AngledShotsList({ categoryId }: AngledShotsListProps) {
         <div>
           <h2 className="text-2xl font-bold">Angled Shots</h2>
           <p className="text-muted-foreground">
-            AI-generated angle variations of your products
+            AI-generated angle variations for {format || '1:1'} format
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -151,20 +157,27 @@ export function AngledShotsList({ categoryId }: AngledShotsListProps) {
           <Button variant="outline" size="icon" onClick={handleRefresh}>
             <RefreshCcw className="h-4 w-4" />
           </Button>
+          <GenerateAngledShotsDialog
+            categoryId={categoryId}
+            format={format || '1:1'}
+            onGenerated={handleRefresh}
+          />
         </div>
       </div>
 
       {angledShots.length === 0 ? (
         <div className="text-center py-12 border border-dashed rounded-lg">
           <Sparkles className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-          <h3 className="text-lg font-medium mb-2">No angled shots yet</h3>
+          <h3 className="text-lg font-medium mb-2">No angled shots for {format || '1:1'} format yet</h3>
           <p className="text-muted-foreground mb-4 max-w-md mx-auto">
-            Angled shots are automatically generated when you upload product images.
-            They create 7 different camera angles of your product.
+            Generate AI-powered angle variations of your product images.
+            Each generation creates 7 different camera angles optimized for {format || '1:1'} aspect ratio.
           </p>
-          <p className="text-sm text-muted-foreground">
-            Upload a product image to see angle variations appear here.
-          </p>
+          <GenerateAngledShotsDialog
+            categoryId={categoryId}
+            format={format || '1:1'}
+            onGenerated={handleRefresh}
+          />
         </div>
       ) : (
         <>
