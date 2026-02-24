@@ -445,12 +445,17 @@ WHAT YOU MUST NOT DO:
 ✗ Do NOT alter the product's labels, text, or branding
 ✗ Do NOT change the background model/person's appearance
 ✗ Do NOT modify the product's colors or design
-✗ Do NOT add new text, logos, or watermarks
+✗ Do NOT add new text, logos, or watermarks of any kind
 ✗ Do NOT change the core elements of either image
+✗ Do NOT add headlines, taglines, CTAs, slogans, or any copy whatsoever
+✗ Do NOT render any words, letters, or typographic elements on the image
+
+IMPORTANT — THIS IS A TEXT-FREE VISUAL COMPOSITE:
+This image is the visual foundation of an ad. All copy (headlines, hooks, CTAs, body text) will be added separately in a later stage by a dedicated compositing tool. Adding text here would permanently bake it into pixels, making it impossible to edit or A/B test later. The composite MUST be clean — product on background, nothing else.
 
 Think of this as taking a real product and photographing it in the background scene with professional lighting and composition. The product and background are real and fixed—you're just creating the photograph.
 
-Return a professional, advertisement-quality composite image.`
+Return a professional, advertisement-quality composite image with NO text of any kind.`
 
     // Prepare content parts with both images
     const contentParts: any[] = []

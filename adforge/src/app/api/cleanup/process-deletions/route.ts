@@ -5,11 +5,22 @@ import { createClient } from '@supabase/supabase-js'
 // Mark route as dynamic to prevent build-time execution
 export const dynamic = 'force-dynamic'
 
+function verifyAuth(request: NextRequest): boolean {
+  const authHeader = request.headers.get('authorization')
+  const expectedToken = process.env.CRON_SECRET || process.env.API_SECRET
+  if (!expectedToken) return false
+  return authHeader === `Bearer ${expectedToken}`
+}
+
 /**
  * Process deletion queue and delete files from Google Drive
  * Can be called manually or via cron job
  */
 export async function POST(request: NextRequest) {
+  if (!verifyAuth(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     console.log('🗑️  Processing deletion queue...')
 
@@ -131,6 +142,10 @@ export async function POST(request: NextRequest) {
  * GET endpoint to check deletion queue status
  */
 export async function GET(request: NextRequest) {
+  if (!verifyAuth(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     // Initialize Supabase client
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!

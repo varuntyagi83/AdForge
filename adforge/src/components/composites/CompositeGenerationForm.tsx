@@ -214,13 +214,16 @@ export function CompositeGenerationForm({
             id="user-prompt"
             value={userPrompt}
             onChange={(e) => setUserPrompt(e.target.value)}
-            placeholder="e.g., Place the product in the model's hands, Position the bottle on the table in the background"
+            placeholder="e.g., Place the product in the model's hands, Position the bottle on the left side of the background"
             maxLength={200}
             rows={2}
             disabled={isGenerating}
           />
           <p className="text-xs text-muted-foreground">
             {userPrompt.length}/200 characters
+          </p>
+          <p className="text-xs text-amber-600 dark:text-amber-500">
+            ⚠️ Composites are text-free visuals — headlines, hooks, and CTAs are added in the <strong>Final Ad</strong> stage.
           </p>
         </div>
 

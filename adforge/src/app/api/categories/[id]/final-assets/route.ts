@@ -11,13 +11,25 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  const format = request.nextUrl.searchParams.get('format')
   const supabase = await createServerSupabaseClient()
 
-  const { data, error } = await supabase
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  let query = supabase
     .from('final_assets')
     .select('*')
     .eq('category_id', id)
     .order('created_at', { ascending: false })
+
+  if (format) {
+    query = query.eq('format', format)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -44,33 +56,42 @@ export async function POST(
     const body = await request.json()
     const {
       name = 'Untitled Ad',
+      format = '1:1',
       compositeId,
       copyDocId,
       logoUrl,
     } = body
 
-    console.log('🎨 Generating final asset for category:', categoryId)
+    const FORMAT_DIMENSIONS: Record<string, { width: number; height: number }> = {
+      '1:1':  { width: 1080, height: 1080 },
+      '16:9': { width: 1920, height: 1080 },
+      '9:16': { width: 1080, height: 1920 },
+      '4:5':  { width: 1080, height: 1350 },
+    }
+    const { width, height } = FORMAT_DIMENSIONS[format] ?? FORMAT_DIMENSIONS['1:1']
+
+    console.log('🎨 Generating final asset for category:', categoryId, `(${format} ${width}x${height})`)
 
     // 1. Fetch template
-    const { data: template, error: templateError } = await supabase
+    const { data: templateRow, error: templateError } = await supabase
       .from('templates')
       .select('*')
       .eq('category_id', categoryId)
       .single()
 
-    if (templateError || !template) {
-      // If no template, use default structure
+    const template = templateRow ?? {
+      id: null,
+      template_data: {
+        layers: [
+          { id: 'bg', type: 'background', x: 0, y: 0, width: 100, height: 100, z_index: 0 },
+          { id: 'text', type: 'text', name: 'headline', x: 10, y: 80, width: 80, height: 15, z_index: 2, font_size: 48, color: '#000000', text_align: 'center' },
+        ],
+        safe_zones: [],
+      },
+    }
+
+    if (templateError || !templateRow) {
       console.warn('⚠️  No template found, using default layout')
-      const defaultTemplate = {
-        template_data: {
-          layers: [
-            { id: 'bg', type: 'background', x: 0, y: 0, width: 100, height: 100, z_index: 0 },
-            { id: 'text', type: 'text', name: 'headline', x: 10, y: 80, width: 80, height: 15, z_index: 2, font_size: 48, color: '#000000', text_align: 'center' },
-          ],
-          safe_zones: []
-        }
-      }
-      template.template_data = defaultTemplate.template_data
     }
 
     // 2. Fetch composite (background + product)
@@ -139,6 +160,9 @@ export async function POST(
       composite_url: compositeUrl,
       copy_text: copyText,
       logo_url: logoUrl,
+      format,
+      width,
+      height,
       output_path: `/tmp/final_asset_${Date.now()}.png`
     }
 
@@ -183,7 +207,8 @@ export async function POST(
     console.log('📤 Uploading final asset to Google Drive...')
 
     const timestamp = Date.now()
-    const storagePath = `${categorySlug}/final-assets/asset_${timestamp}.png`
+    const formatFolder = format.replace(':', 'x') // '1:1' → '1x1', '16:9' → '16x9'
+    const storagePath = `${categorySlug}/final-assets/${formatFolder}/asset_${timestamp}.png`
 
     // Read the file as a Buffer
     const fileBuffer = await readFile(result)
@@ -206,9 +231,9 @@ export async function POST(
         composite_id: compositeId,
         copy_doc_id: copyDocId,
         name,
-        format: '1:1',
-        width: 1080,
-        height: 1080,
+        format,
+        width,
+        height,
         composition_data: {
           layers: template.template_data.layers,
           source_composite: compositeUrl,

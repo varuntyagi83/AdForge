@@ -17,6 +17,7 @@ import { FinalAssetsWorkspace } from '@/components/final-assets/FinalAssetsWorks
 import { FormatSelector } from '@/components/format-selector'
 import { GuidelineUploadForm } from '@/components/templates/GuidelineUploadForm'
 import { GuidelinesList } from '@/components/templates/GuidelinesList'
+import type { BrandVoiceProfile } from '@/lib/ai/brand-voice'
 
 interface CategoryDetailPageProps {
   params: Promise<{ id: string }>
@@ -28,6 +29,8 @@ interface Category {
   slug: string
   description: string
   look_and_feel: string | null
+  brand_doc_name: string | null
+  brand_voice: BrandVoiceProfile | null
   counts: {
     products: number
     angled_shots: number
@@ -179,7 +182,6 @@ export default function CategoryDetailPage({ params }: CategoryDetailPageProps) 
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="ad-export">Ad Export</TabsTrigger>
         </TabsList>
 
         <TabsContent value="assets" className="space-y-4">
@@ -221,14 +223,7 @@ export default function CategoryDetailPage({ params }: CategoryDetailPageProps) 
           <FinalAssetsWorkspace categoryId={category.id} format={selectedFormat} />
         </TabsContent>
 
-        <TabsContent value="ad-export">
-          <div className="rounded-lg border border-dashed p-12 text-center">
-            <p className="text-muted-foreground">Ad Export</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Export ads in multiple aspect ratios
-            </p>
-          </div>
-        </TabsContent>
+
       </Tabs>
     </div>
   )

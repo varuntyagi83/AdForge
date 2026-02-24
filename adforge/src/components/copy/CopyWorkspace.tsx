@@ -4,8 +4,12 @@ import { useState } from 'react'
 import { CopyGenerationForm } from './CopyGenerationForm'
 import { CopyPreviewGrid } from './CopyPreviewGrid'
 import { CopyGallery } from './CopyGallery'
+import { BrandVoiceExtractor } from './BrandVoiceExtractor'
+import type { BrandVoiceProfile } from '@/lib/ai/brand-voice'
 
 interface GeneratedCopy {
+  copy_type?: string
+  tone?: string
   prompt_used: string
   generated_text: string
 }
@@ -16,6 +20,8 @@ interface CopyWorkspaceProps {
     name: string
     slug: string
     look_and_feel: string | null
+    brand_doc_name?: string | null
+    brand_voice?: BrandVoiceProfile | null
   }
   format: string
 }
@@ -25,13 +31,12 @@ export function CopyWorkspace({ category, format }: CopyWorkspaceProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [currentBrief, setCurrentBrief] = useState('')
-  const [currentCopyType, setCurrentCopyType] = useState('hook')
+  const [currentCopyType, setCurrentCopyType] = useState('kit')
+  const [brandVoice, setBrandVoice] = useState<BrandVoiceProfile | null>(
+    category.brand_voice ?? null
+  )
 
-  const handleGenerate = async (
-    copies: GeneratedCopy[],
-    brief: string,
-    copyType: string
-  ) => {
+  const handleGenerate = (copies: GeneratedCopy[], brief: string, copyType: string) => {
     setGeneratedCopies(copies)
     setCurrentBrief(brief)
     setCurrentCopyType(copyType)
@@ -44,10 +49,19 @@ export function CopyWorkspace({ category, format }: CopyWorkspaceProps) {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {/* Brand Voice Extractor — shown above the generation form */}
+      <BrandVoiceExtractor
+        categoryId={category.id}
+        lookAndFeel={category.look_and_feel || undefined}
+        initialProfile={brandVoice}
+        onProfileChange={setBrandVoice}
+      />
+
       <CopyGenerationForm
         categoryId={category.id}
         lookAndFeel={category.look_and_feel || ''}
+        brandDocName={category.brand_doc_name}
         onGenerate={handleGenerate}
         isGenerating={isGenerating}
         setIsGenerating={setIsGenerating}

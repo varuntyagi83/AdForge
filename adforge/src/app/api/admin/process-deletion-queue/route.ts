@@ -22,11 +22,11 @@ export async function POST(request: NextRequest) {
     console.log('🔄 Processing deletion queue...')
 
     // Get pending deletions (oldest first, limit to 50 per run)
+    // Items that hit max_retries are set to 'failed' status, so status='pending' filter is sufficient
     const { data: pendingDeletions, error: fetchError } = await supabase
       .from('deletion_queue')
       .select('*')
       .eq('status', 'pending')
-      .lt('retry_count', supabase.rpc('get', { col: 'max_retries' })) // Still have retries left
       .order('created_at', { ascending: true })
       .limit(50)
 

@@ -1,800 +1,234 @@
-# AdForge Development Progress
+# AdForge - Implementation Progress
 
-> Last Updated: February 21, 2026
-
-## 🎯 Project Overview
-
-AdForge is an AI-powered ad creative pipeline that automates the generation of product photography, backgrounds, composites, and marketing copy for e-commerce brands.
-
-**Live URL:** https://ad-forge-opal.vercel.app/
+**Last Updated:** 2026-02-24
 
 ---
 
-## ✅ Phase 0: Foundation & Setup (COMPLETED)
+## 📋 Implementation Plan: Template-First Approach
 
-### Database & Infrastructure
-- [x] Supabase project setup
-- [x] Database schema with RLS policies
-- [x] Storage buckets configuration
-- [x] Environment variables configuration
-- [x] Vercel deployment setup
-- [x] Auto-deployment from GitHub (resolved by making repo public)
-
-### Authentication System
-- [x] Supabase Auth integration
-- [x] Login page with email/password
-- [x] Signup page with validation
-- [x] Email confirmation callback handler
-- [x] Protected route middleware
-- [x] Session management
-- [x] Redirect flows
-
-### Core UI Framework
-- [x] Next.js 14 App Router setup
-- [x] Tailwind CSS configuration
-- [x] shadcn/ui component library
-- [x] Responsive layout structure
-- [x] Dark mode support (via system)
+### Revised Order (Correct Dependencies):
+1. **Define Safe Zones/Templates First** ⭐ (Blueprint)
+2. **Generate Composites** (Product + Background, follows template)
+3. **Generate Copy Docs** (Fits character limits from template)
+4. **Generate Final Assets** (Assembles everything using template)
 
 ---
 
-## ✅ Phase 1: Category & Product Management (COMPLETED ✅ Feb 21, 2026)
+## ✅ Completed
 
-### 1.1 Category Management (COMPLETED)
-- [x] Categories list page
-- [x] Create category dialog
-- [x] Category detail page with tabs
-- [x] Edit category functionality
-- [x] Delete category functionality
-- [x] Category slug generation
-- [x] Look & Feel field for AI context
+### Brand Voice Extractor (2026-02-23):
+- [x] **AI-Powered Brand Voice Extraction** — 3 input methods, deep profile generation
+  - **Method 1 — Q&A:** 6 structured brand questions (personality, audience, feeling, reference, never, sample)
+  - **Method 2 — Text Samples:** Paste up to 5 pieces of existing copy for AI style analysis
+  - **Method 3 — Ad Images:** Upload up to 5 images; Gemini analyses visual language, copy, emotional tone
+  - Profile saved to `categories.brand_voice` (JSONB) via `POST /api/categories/[id]/brand-voice`
+  - Profile automatically fed into every copy generation as highest-priority context
+  - `src/lib/ai/brand-voice.ts`: 3 extraction functions + rich prompt formatting
+  - `src/components/copy/BrandVoiceExtractor.tsx`: 3-tab UI with full profile display
+  - Migration: `supabase/migrations/20260223_brand_voice.sql`
 
-**API Endpoints:**
-- `GET /api/categories` - List user's categories
-- `POST /api/categories` - Create category
-- `GET /api/categories/[id]` - Get single category
-- `PUT /api/categories/[id]` - Update category
-- `DELETE /api/categories/[id]` - Delete category
+- [x] **Rich Brand Voice Profile Schema** — 15+ fields covering all dimensions of brand voice:
+  - Identity: `tone_words`, `personality`, `brand_promise`
+  - Style: `language_style`, `sentence_structure`, `vocabulary_level`, `emotional_register`
+  - Rules: `dos[]`, `donts[]`, `messaging_pillars[]`, `power_words[]`
+  - Examples: `sample_phrases[]`, `example_hooks[]`, `example_ctas[]`
+  - Context: `audience_insight`, `competitive_differentiation`
+  - AI prompted to be "specific and opinionated — vague outputs are useless"
+  - `formatBrandVoiceForPrompt()` injects all 15 fields into OpenAI system prompt
 
-### 1.2 Brand Assets Management (COMPLETED)
-- [x] Brand assets page
-- [x] Multi-file upload to Supabase Storage
-- [x] Image preview grid
-- [x] Delete asset functionality
-- [x] Upload progress indicators
-- [x] File type validation
-- [x] Storage bucket setup
+### Copy Tab — Multi-tone Kit + Brand Guidelines PDF (2026-02-23):
+- [x] **Multi-type + Multi-tone Copy Generation**
+  - Generate all selected copy types × all selected tones in a single click
+  - e.g. Hook + Headline + CTA × Professional + Playful = 6 combinations at once
+  - Parallel generation via `generateCopyKit()` in `src/lib/ai/openai.ts`
+  - API supports both `mode: 'kit'` (new) and `mode: 'single'` (backwards compatible)
+  - Max 25 combinations per request (5 types × 5 tones)
+  - Results grouped by copy type in `CopyPreviewGrid.tsx`
+  - Each card shows Type badge + Tone badge
+  - `tone` column added to `copy_docs` table (migration: `20260223_copy_enhancements.sql`)
 
-**API Endpoints:**
-- `GET /api/brand-assets` - List user's assets
-- `POST /api/brand-assets/upload` - Upload files
-- `DELETE /api/brand-assets/[id]` - Delete asset
+- [x] **Brand Guidelines PDF Upload**
+  - Upload a brand PDF in the Copy tab — text is extracted and stored per-category
+  - Parsed text fed into the OpenAI system prompt on every copy generation
+  - PDF parsing via `pdfjs-dist` (already in dependencies)
+  - Stored in `categories.brand_guidelines` (TEXT, max ~8000 chars)
+  - Filename stored in `categories.brand_doc_name` for UI display
+  - Upload/remove via `POST/DELETE /api/categories/[id]/brand-docs`
+  - Active brand doc shown as a chip in `CopyGenerationForm` with remove button
 
-### 1.3 Product Management (COMPLETED)
-- [x] Products list within category
-- [x] Create product dialog
-- [x] Product cards with metadata
-- [x] Delete product functionality
-- [x] Product slug generation
-- [x] Empty states
+  **⚠️ Important — PDF Storage Architecture:**
+  - The **PDF binary is NEVER stored** (not in Supabase Storage, not on disk, not in Google Drive)
+  - PDF is uploaded → text extracted in-memory by `pdfjs-dist` → PDF discarded immediately
+  - Only the **extracted text** is persisted: `categories.brand_guidelines` (TEXT column in Supabase PostgreSQL)
+  - Only the **filename** is persisted: `categories.brand_doc_name` (for UI display)
+  - ✅ No storage costs, no bucket management, text immediately injectable into prompts
+  - ⚠️ Scanned/image-only PDFs won't work (no selectable text to extract)
+  - ⚠️ Truncated at 8,000 chars (~4–5 pages of dense text); longer docs lose trailing content
 
-**API Endpoints:**
-- `GET /api/categories/[id]/products` - List products in category
-- `POST /api/categories/[id]/products` - Create product
-- `GET /api/categories/[id]/products/[productId]` - Get product
-- `PUT /api/categories/[id]/products/[productId]` - Update product
-- `DELETE /api/categories/[id]/products/[productId]` - Delete product
+- [x] **Composite Safe Zone Enforcement (2026-02-23)**
+  - Added explicit AI instructions to `generateComposite()` in `gemini.ts`:
+    - `✗ Do NOT add headlines, taglines, CTAs, slogans, or any copy`
+    - `✗ Do NOT render any words, letters, or typographic elements`
+  - Composites are now enforced as text-free visual foundations
+  - Warning note added to `CompositeGenerationForm.tsx` for users
+  - Text/copy belongs only in the Final Assets stage
 
-### 1.4 Multi-Image Upload for Products (COMPLETED ✅ Feb 21, 2026)
-- [x] Product image upload interface
-- [x] Multiple image handling
-- [x] Image preview and management
-- [x] Set primary image
-- [x] Delete individual images
-- [x] Product-specific storage organization
+- [x] **Critical Bug Fix: Composite Unique Constraint (2026-02-23)**
+  - Removed `UNIQUE (angled_shot_id, background_id)` constraint from `composites` table
+  - Previously blocked users from regenerating or creating variations
+  - Fix: `ALTER TABLE composites DROP CONSTRAINT IF EXISTS composites_angled_shot_id_background_id_key`
+  - Verified: multiple composites with same assets now create successfully
 
-### 1.5 @ Reference Picker Component (COMPLETED ✅ Feb 21, 2026)
-- [x] Autocomplete component for @mentions
-- [x] Reference brand assets from products
-- [x] Reference products from other contexts
-- [x] Visual preview of referenced items
-- [x] Edit product functionality with reference support
+### Final Assets — End-to-End Generation (2026-02-24):
+- [x] **Final Assets tab fully wired** — composites + copy + logo → Python compositing → Google Drive upload → Supabase record
+  - Format-aware: generates at correct pixel dimensions per selected format (1:1→1080×1080, 16:9→1920×1080, 9:16→1080×1920, 4:5→1080×1350)
+  - Logo selector: fetches all logos from `brand_assets`, renders Select dropdown with thumbnail previews
+  - Storage path includes format folder: `{slug}/final-assets/{format}/asset_{timestamp}.png`
+  - GET endpoint filters by `?format=` param so tab only shows assets for selected format
+  - `src/components/final-assets/FinalAssetsWorkspace.tsx`
+  - `src/app/api/categories/[id]/final-assets/route.ts`
 
-**Components Created:**
-- `ReferencePicker` - Rich text input with @ mention autocomplete
-- `ReferenceDisplay` - Parses and displays references with previews
-- `EditProductDialog` - Edit product with reference picker integration
+- [x] **Python Compositing Script** — `scripts/composite_final_asset.py`
+  - Reads `width` and `height` from stdin JSON (no longer hardcoded 1080×1080)
+  - Cross-platform font loading: tries DejaVu/Liberation/Ubuntu (Linux), Helvetica (macOS), Arial (Windows)
+  - All debug output goes to stderr; only final JSON result goes to stdout (prevents parse errors)
 
-**API Endpoints:**
-- `GET /api/references/search?q=query` - Search brand assets and products for autocomplete
+- [x] **GDrive → Supabase Composite Sync** — `scripts/sync-composites-from-gdrive.mjs`
+  - Scans GDrive `{slug}/composites/{format}` folders
+  - Extracts angle name from filename using `-on-` split pattern
+  - Matches to `angled_shots` records with format-specific + fallback matching
+  - Supports `--dry-run` and `--format=` flags
 
----
+### Bug Fixes & Security (2026-02-24):
+- [x] **TypeScript type unification** — `BrandVoiceProfile` was defined 3× with mismatched fields
+  - `CopyWorkspace.tsx` and `BrandVoiceExtractor.tsx` now both `import type { BrandVoiceProfile } from '@/lib/ai/brand-voice'`
+  - Single source of truth; build no longer fails on type incompatibility
 
-## ✅ Phase 2: AI Image Generation - Angled Shots (COMPLETED ✅ Feb 21, 2026)
+- [x] **Security: auth added to `cleanup/process-deletions`** — both GET and POST handlers now require `CRON_SECRET` bearer token; fails closed (rejects all) if secret is unset
 
-### 2.1 Google Gemini Integration (COMPLETED)
-- [x] Google Gemini 3 Pro Image Preview model integration
-- [x] Image-to-image generation capabilities
-- [x] Prompt generation for angle variations using look_and_feel
-- [x] Error handling and retry logic
-- [x] Base64 image encoding for API
+- [x] **Security: auth added to GET `/api/categories/[id]/final-assets`** — now calls `supabase.auth.getUser()` consistent with POST
 
-### 2.2 Angled Shot Generation (COMPLETED)
-- [x] Product selection dropdown
-- [x] Product image selection from existing uploads
-- [x] 7 predefined angle variations (front, left_30deg, right_30deg, top_45deg, three_quarter_left, three_quarter_right, isometric)
-- [x] Custom angle selection (checkboxes)
-- [x] Generate button with loading states
-- [x] Preview generated angles in grid
-- [x] Save individual angles
-- [x] AI-powered generation using Gemini
+- [x] **Fix: broken `supabase.rpc('get', ...)` call** in `admin/process-deletion-queue` — removed invalid RPC filter; `status='pending'` filter is sufficient since exhausted-retry items are set to `'failed'`
 
-### 2.3 Google Drive Migration (COMPLETED ✅ Feb 21, 2026)
-- [x] Google Drive API integration
-- [x] Service account setup and authentication
-- [x] Storage adapter architecture (pluggable storage system)
-- [x] Migrated from Supabase Storage to Google Drive
-- [x] Folder structure: `/AdForge Assets/product-images/user-id/product-id/`
-- [x] Automatic folder creation with proper permissions
-- [x] File metadata tracking (gdrive_file_id, storage_url, storage_provider)
-- [x] Thumbnail API URLs for proper image display
-- [x] Removed 8 unused Supabase Storage buckets
+- [x] **Fix: template null mutation crash** — `final-assets/route.ts` no longer writes to a null `template` object when no template exists; uses nullish coalescing to build a default template object
 
-**Storage Adapter:**
-- `GoogleDriveAdapter` - Complete Drive integration
-- `deleteFile()` - Multi-storage deletion support
-- `uploadFile()` - Abstracted upload interface
+- [x] **Fix: `selectedLogo` closure ordering** — moved logo lookup inside `handleGenerate` to avoid potential TDZ reference before render completes
 
-### 2.4 Storage Sync System (COMPLETED ✅ Feb 21, 2026)
-- [x] 3-layer sync architecture
-- [x] Database triggers for automatic cleanup queueing
-- [x] Deletion queue table with retry logic
-- [x] Cron job for processing deletion queue (every 5 minutes)
-- [x] Reconciliation API for manual sync
-- [x] Cleanup scripts for trashed file metadata
-- [x] Migration 006 - Deletion queue and triggers
+### Foundation Work:
+- [x] **Categories & Products System**
+  - Category CRUD with look_and_feel field
+  - Product CRUD within categories
+  - Database schema with RLS enabled
 
-**Deletion Scenarios Covered:**
-1. UI Delete → Both Drive & DB deleted immediately ✅
-2. Manual Drive Delete → Run reconciliation API ⚠️
-3. Drive Trash → Run cleanup script 🗑️
-4. Manual DB Delete → Queued for Drive deletion 🔄
+- [x] **Brand Assets**
+  - Logo upload system
+  - Global brand asset management
+  - Storage in `brand-assets` bucket
 
-**Cleanup Tools:**
-- `scripts/cleanup-orphaned-local.ts` - Direct DB/Drive cleanup
-- `scripts/cleanup-orphaned-metadata.ts` - API-based cleanup
-- `/api/admin/cleanup-orphaned-metadata` - Admin endpoint
-- `/api/admin/process-deletion-queue` - Cron endpoint
+- [x] **Angled Shot Generation**
+  - 7 angles generated successfully
+  - Angles: front, three_quarter_right, three_quarter_left, right_side, left_side, top_45deg, isometric
+  - Using Gemini API (gemini-3-pro-image-preview)
+  - Temperature: 0.85 (for distinct angles)
+  - Storage: Google Drive + Supabase `angled_shots` table
+  - Script: `scripts/regenerate-1x1-direct.mjs`
 
-### 2.5 UI Improvements (COMPLETED ✅ Feb 21, 2026)
-- [x] Angled shots display with AngledShotCard component
-- [x] AngledShotsList with product filtering
-- [x] Real category counts (products & angled shots)
-- [x] Fixed image loading states
-- [x] Download and view full size functionality
-- [x] Proper Google Drive thumbnail URLs
-- [x] Removed "Coming in Phase 2" placeholders
+- [x] **Templates/Safe Zones System** ⭐ (BLUEPRINT COMPLETE)
+  - Full visual template builder with react-konva canvas
+  - Drag-and-drop layer positioning
+  - Layer types: background, product, text, logo
+  - Safe zones with exclusion/margin types
+  - Multi-format support (1:1, 9:16, 16:9, 4:5)
+  - Template gallery with save/load
+  - Component: `src/components/templates/TemplateWorkspace.tsx`
+  - API routes: Full CRUD at `/api/categories/[id]/templates`
+  - Database: `templates` table with JSONB template_data
 
-**API Endpoints:**
-- `POST /api/categories/[id]/angled-shots/generate` - Generate angles using AI
-- `GET /api/categories/[id]/angled-shots` - List angled shots (with product filter)
-- `POST /api/categories/[id]/angled-shots` - Save generated angle
-- `DELETE /api/categories/[id]/angled-shots/[angleId]` - Delete angle (synced deletion)
-- `POST /api/categories/[id]/angled-shots/sync` - Reconciliation API
-- `POST /api/admin/cleanup-orphaned-metadata` - Cleanup trashed files
-- `POST /api/admin/process-deletion-queue` - Process deletion queue
-
-**Components Created:**
-- `AngledShotCard` - Individual shot display with actions
-- `AngledShotsList` - Gallery view with filtering
-- `generateAngledShots()` - Gemini integration
-- `GoogleDriveAdapter` - Storage abstraction
+### Technical Details:
+- **Stack:** Next.js 14, TypeScript, Supabase, Google Drive API
+- **AI Models:**
+  - Gemini (Nano Banana Pro) for image generation
+  - Claude Sonnet 4.5 for copy generation (planned)
+- **Storage:** Google Drive with public URLs
+- **Database:** Supabase with 12 tables
 
 ---
 
-## ✅ Phase 3: Background & Composite Generation (COMPLETED ✅ Feb 21, 2026)
+## 🚧 In Progress
 
-**⚠️ CRITICAL:** All asset types MUST implement the same storage sync system as angled_shots (see `docs/STORAGE_SYNC_REQUIREMENTS.md`)
-
-### 3.1 Database & Backend (COMPLETED ✅)
-- [x] Migration 009 - backgrounds table with full storage sync
-- [x] Migration 010 - composites table with full storage sync
-- [x] Migration 011 - angled_shots storage sync fields (gdrive support)
-- [x] Google Drive folder structure fixes (human-readable names)
-- [x] Frontend image display fixes (use API public_url)
-- [x] Cleanup scripts updated for new tables
-
-### 3.2 Background Generation Backend (COMPLETED ✅ Feb 21, 2026)
-- [x] `generateBackgrounds()` AI function in gemini.ts
-- [x] Category look_and_feel integration
-- [x] Support for style reference images
-- [x] Multiple background variations (customizable count)
-- [x] **Storage sync:** Google Drive integration ✅
-- [x] **Storage sync:** Database triggers for deletion queue ✅
-- [x] **Storage sync:** Cleanup scripts support ✅
-- [x] **Storage sync:** Thumbnail API URLs ✅
-
-**API Endpoints:**
-- `POST /api/categories/[id]/backgrounds/generate` - Generate backgrounds using Gemini AI
-- `GET /api/categories/[id]/backgrounds` - List backgrounds for category
-- `POST /api/categories/[id]/backgrounds` - Save generated background to Google Drive
-- `DELETE /api/categories/[id]/backgrounds/[backgroundId]` - Delete background (synced deletion)
-
-### 3.3 Background Generation UI (COMPLETED ✅ Feb 21, 2026)
-- [x] Background generation page/tab
-- [x] **Look & Feel textarea** with category default value
-- [x] User prompt textarea for specific background description
-- [x] Background count slider (1-4 variations)
-- [x] Generate button with loading states
-- [x] Preview grid for generated backgrounds
-- [x] Save individual backgrounds with custom naming
-- [x] Save all backgrounds batch action
-- [x] Backgrounds gallery with search and filters
-- [x] Download individual backgrounds
-- [x] Delete backgrounds (synced deletion)
-- [x] Real-time count updates in category tabs
-
-**Components Created:**
-- `BackgroundGenerationWorkspace` - Main workspace with tabs
-- `BackgroundGenerationForm` - Form with Look & Feel + User Prompt inputs
-- `BackgroundPreviewGrid` - Preview and save generated backgrounds
-- `BackgroundGallery` - Display saved backgrounds with actions
-
-**Key Features:**
-- **Look & Feel Integration:** Pre-populated from category, editable per generation
-- Character limits: 500 chars for look & feel, 300 for user prompt
-- Batch operations: Save all, discard all
-- Inline prompt display for each generated background
-- Empty states with helpful messaging
-- Toast notifications for all actions
-
-**E2E Test Results (Feb 21, 2026):**
-- ✅ All 7 tests passed
-- ✅ Category look_and_feel field verified
-- ✅ Backgrounds table schema correct (all storage sync fields present)
-- ✅ API endpoints accessible (GET /api/categories/[id]/backgrounds)
-- ✅ All 4 UI components exist and integrated
-- ✅ Google Drive integration verified (1 background in greenworld)
-- ✅ UI successfully integrated into category page
-- 📝 Test script: `scripts/test-background-ui.ts`
-
-### 3.4 Composite Creation Backend (COMPLETED ✅ Feb 21, 2026)
-- [x] `generateComposite()` AI function in gemini.ts
-- [x] Product × background intelligent compositing with Gemini
-- [x] Multi-image input support (product + background)
-- [x] Preserves product appearance (labels, branding, colors)
-- [x] Preserves background scene elements (models, props)
-- [x] Natural lighting and shadow integration
-- [x] Optional user placement instructions
-- [x] **Storage sync:** Google Drive integration ✅
-- [x] **Storage sync:** Database triggers for deletion queue ✅
-- [x] **Storage sync:** Cleanup scripts support ✅
-- [x] **Storage sync:** Thumbnail API URLs ✅
-- [x] Two generation modes: "All Combinations" & "Selected Pairs"
-- [x] Batch processing with 50-composite limit
-- [x] Links angled_shot_id + background_id in database
-
-**API Endpoints:**
-- `POST /api/categories/[id]/composites/generate` - Generate composites (all or selected pairs)
-- `GET /api/categories/[id]/composites` - List composites with related data (joins)
-- `POST /api/categories/[id]/composites` - Save generated composite to Google Drive
-- `DELETE /api/categories/[id]/composites/[compositeId]` - Delete composite (synced deletion)
-
-**Key Implementation Details:**
-- Gemini prompt engineered to preserve asset integrity while creating natural compositions
-- Temperature: 0.4 (lower for precise compositing vs. 0.7 for creative backgrounds)
-- Downloads images from Google Drive for compositing (supports both gdrive and Supabase storage)
-- Auto-generates composite names: "{angled_shot_name} on {background_name}"
-- Validates that both angled shot and background belong to the category
-
-### 3.5 Composite Creation UI (COMPLETED ✅ Feb 21, 2026)
-- [x] Composite generation workspace in category page
-- [x] **Mode selection:** "All Combinations" or "Select Specific Pairs"
-- [x] Angled shot multi-select with checkboxes
-- [x] Background multi-select with checkboxes
-- [x] Optional placement instructions textarea (200 chars)
-- [x] Real-time combination calculator
-- [x] Warning for large batches (>20 composites)
-- [x] Hard limit enforcement (50 composites max)
-- [x] Generate button with loading states
-- [x] Preview grid for generated composites
-- [x] Save individual composites with custom naming
-- [x] Save all composites batch action
-- [x] Download composites without saving
-- [x] Composites gallery with source info
-- [x] Shows angled shot + background names for each composite
-- [x] Delete composites (synced deletion)
-- [x] Real-time count updates in category tabs
-
-**Components Created:**
-- `CompositeWorkspace` - Main workspace container
-- `CompositeGenerationForm` - Mode selection, asset picker, and generation controls
-- `CompositePreviewGrid` - Preview and save generated composites
-- `CompositeGallery` - Display saved composites with source metadata
-
-**Key Features:**
-- Smart defaults: "Selected Pairs" mode recommended to avoid accidentally generating too many
-- Asset availability checking: Shows "No angled shots" or "No backgrounds" warnings
-- Combination preview: "{X} shots × {Y} backgrounds = {Z} composites"
-- Individual save dialog with name customization
-- Batch save with auto-generated names
-- Gallery shows relationships: Which shot + which background = this composite
-- Empty states with helpful next-step messaging
-- Toast notifications for all actions
-
-**E2E Test Results (Feb 21, 2026):**
-- ✅ All 9 tests passed
-- ✅ Composites table schema correct (all storage sync fields present)
-- ✅ API endpoints accessible (GET /api/categories/[id]/composites)
-- ✅ All 4 UI components exist and integrated
-- ✅ generateComposite function implemented in gemini.ts
-- ✅ UI successfully integrated into category page
-- 📝 Test script: `scripts/test-composite-generation.ts`
-
-**Real Generation Success (Feb 21, 2026):**
-- ✅ **7/7 composites generated** for Gummy Bear category using ALL angled shots
-- ✅ All composites saved to Google Drive: `gummy-bear/composites/`
-- ✅ All composites saved to database with proper relationships
-- ✅ Generated using Gemini AI with intelligent placement
-- ✅ Preserved product labels and background elements exactly
-- ✅ Added natural lighting, shadows, and depth
-- 📝 Generation script: `scripts/generate-all-composites.ts`
-- 📝 Verification script: `scripts/verify-composites.ts`
-
-**Composites Generated:**
-1. front-on-colorful-bg
-2. isometric-on-colorful-bg
-3. left-30deg-on-colorful-bg
-4. right-30deg-on-colorful-bg
-5. three-quarter-left-on-colorful-bg
-6. three-quarter-right-on-colorful-bg
-7. top-45deg-on-colorful-bg
-
-**Bug Fix (Feb 21, 2026):**
-- 🐛 Fixed: UI showed "No composites yet" despite 7 composites in database
-- Root cause: API queried non-existent `name` field from angled_shots table
-- Solution: Updated API to use `angle_name` instead of `name`
-- Result: All 7 composites now display correctly in UI gallery
-- Commit: `aa3513e`
+### Current Focus:
+**NOTHING - Ready for next step**
 
 ---
 
-## ✅ Phase 4: Copy Generation with GPT-4o (COMPLETED ✅ Feb 21, 2026)
+## ❌ Not Started (In Priority Order)
 
-**Implementation Time:** 15 minutes (code) + testing
-**Build Status:** ✅ TypeScript compilation successful
-**Deployment:** Pushed to main (commit 7b760aa)
+### 1. **Generate Composites Using Templates** ⭐ NEXT STEP
+**Why Second?** Now we know EXACTLY where to place the product from the template.
 
-### 4.1 OpenAI Integration (COMPLETED)
-- [x] GPT-4o API setup (`openai@^4.74.0`)
-- [x] Marketing copy generation with `generateCopyVariations()`
-- [x] Multiple copy variations (1-5 per generation)
-- [x] 5 copy types: hook, headline, tagline, cta, body
-- [x] Configurable tone (professional, casual, playful, urgent, empathetic)
-- [x] Target audience customization
-- [x] Temperature 0.8 for creative variations
-- [x] Character limits per copy type
-- [x] Look & Feel integration (uses category style guide)
+**What to Build:**
+- Product + Background combination
+- Respect template's product placement zone
+- Use Nano Banana Pro for composition
+- Multi-image input with role assignments
 
-### 4.2 Copy Management (COMPLETED)
-- [x] Copy docs storage per category
-- [x] Preview-before-save workflow
-- [x] Copy to clipboard functionality
-- [x] Character count display
-- [x] Color-coded badges by type
-- [x] Gallery view with saved copies
-- [x] Delete functionality
-- [x] **Storage sync:** Full Google Drive integration ✅
-- [x] **Storage sync:** Database triggers for deletion queue ✅
-- [x] **Storage sync:** Cleanup scripts support ✅
-- [x] **Storage sync:** JSON file storage format
-- [x] **Storage sync:** Folder structure: `{category-slug}/copy-docs/{type}/{name}_{timestamp}.json`
-
-### 4.3 Database Migration
-- [x] Migration 012: Added storage sync fields to `copy_docs` table
-  - `storage_provider`, `storage_path`, `storage_url`, `gdrive_file_id`
-  - `prompt_used` for AI reproducibility
-  - `updated_at` with auto-trigger
-- [x] Deletion queue trigger for automatic cleanup
-- [x] Performance indexes (provider, gdrive_id, category_id, copy_type, user_id)
-
-### 4.4 API Endpoints (COMPLETED)
-- [x] `POST /api/categories/[id]/copy-docs/generate` - Generate with OpenAI
-- [x] `GET /api/categories/[id]/copy-docs` - List saved copy docs
-- [x] `POST /api/categories/[id]/copy-docs` - Save to Google Drive + DB
-- [x] `DELETE /api/categories/[id]/copy-docs/[docId]` - Delete with storage sync
-
-### 4.5 UI Components (COMPLETED)
-- [x] **CopyWorkspace** - Main orchestrator with state management
-- [x] **CopyGenerationForm** - Input form with all parameters
-- [x] **CopyPreviewGrid** - Preview and save generated variations
-- [x] **CopyGallery** - Display saved copy docs with actions
-- [x] Tab integration into category page
-- [x] Count badge for copy_docs
-- [x] Responsive design following Phase 3 patterns
-
-### 4.6 Testing & Verification
-- [x] TypeScript compilation successful
-- [x] UI tested with live OpenAI generation
-- [x] Copy variations generated successfully
-- [x] Save workflow verified
-- [x] Gallery display confirmed
-- [x] Google Drive folder structure verified
-
-### 4.7 Bug Fixes
-- [x] Fixed Select component empty value error (commit 7b760aa)
-- [x] TypeScript interface consistency (snake_case for API responses)
-
-### Key Files Modified/Created
-**Created:**
-- `supabase/migrations/012_add_copy_docs_storage_sync.sql`
-- `src/app/api/categories/[id]/copy-docs/generate/route.ts`
-- `src/app/api/categories/[id]/copy-docs/route.ts`
-- `src/app/api/categories/[id]/copy-docs/[docId]/route.ts`
-- `src/components/copy/CopyWorkspace.tsx`
-- `src/components/copy/CopyGenerationForm.tsx`
-- `src/components/copy/CopyPreviewGrid.tsx`
-- `src/components/copy/CopyGallery.tsx`
-- `scripts/test-copy-generation.ts`
-
-**Modified:**
-- `src/lib/ai/openai.ts` - Added `generateCopyVariations()`
-- `src/app/(dashboard)/categories/[id]/page.tsx` - Added Copy tab
-- `package.json` - Added `openai@^4.74.0`
-
-### Production Readiness
-✅ **Ready for production use** after migration 012 is applied
-
-**Next Steps:**
-1. Apply migration 012 to production database
-2. Verify OPENAI_API_KEY is set in production environment
-3. Test copy generation in production
-4. Monitor OpenAI API usage and costs
+**Estimated Time:** 2-3 hours
 
 ---
 
-## 📋 Phase 5: Design Guidelines & Safe Zones (PLANNED)
+### 3. **Generate Copy Docs**
+**Why Third?** Character limits are defined in template text zones.
 
-**⚠️ CRITICAL:** All asset types MUST implement the same storage sync system (see `docs/STORAGE_SYNC_REQUIREMENTS.md`)
+**What to Build:**
+- Marketing copy generation with Claude Sonnet 4.5
+- Copy types: headline, hook, CTA, body, tagline
+- Multi-language support (EN, DE, FR, ES, etc.)
+- Respect maxChars from template zones
 
-### 5.1 Guidelines Upload
-- [ ] PDF/image upload for guidelines
-- [ ] Parse safe zones
-- [ ] Store guideline specs
-- [ ] **Storage sync:** Google Drive integration
-- [ ] **Storage sync:** Database triggers for deletion queue
-- [ ] **Storage sync:** Cleanup scripts support
-- [ ] **Storage sync:** Thumbnail API URLs for image guidelines
-
-### 5.2 Safe Zone Application
-- [ ] Apply safe zones to composites
-- [ ] Visual safe zone overlay
-- [ ] Validation against guidelines
+**Estimated Time:** 2-3 hours
 
 ---
 
-## 📋 Phase 6: Final Asset Assembly (PLANNED)
+### 4. **Generate Final Assets**
+**Why Last?** Everything is ready - template deterministically places copy on composites.
 
-**⚠️ CRITICAL:** All asset types MUST implement the same storage sync system (see `docs/STORAGE_SYNC_REQUIREMENTS.md`)
+**What to Build:**
+- Final asset generation API
+- Combine: Composite + Copy + Logo
+- Use template to place elements at exact positions
+- Multi-aspect ratio export
 
-### 6.1 Asset Combination
-- [ ] Combine all elements (image + copy + guidelines)
-- [ ] Preview final creatives
-- [ ] Multiple layout options
-- [ ] Final asset library
-- [ ] **Storage sync:** Google Drive integration
-- [ ] **Storage sync:** Database triggers for deletion queue
-- [ ] **Storage sync:** Cleanup scripts support
-- [ ] **Storage sync:** Thumbnail API URLs
+**Estimated Time:** 4-5 hours
 
 ---
 
-## 📋 Phase 7: Export & Ad Formats (PLANNED)
+## 📊 Dependency Chain
 
-### 7.1 Multi-Format Export
-- [ ] Export in multiple aspect ratios (1:1, 4:5, 16:9, 9:16)
-- [ ] Platform-specific formats (FB, IG, Google Ads)
-- [ ] Bulk export functionality
-- [ ] Download as ZIP
-
----
-
-## 🐛 Issues Resolved
-
-### Critical Issues
-1. **Dynamic Route Naming Conflict** (Fixed: Feb 21, 2026)
-   - Problem: Mixed usage of `[id]` and `[categoryId]` caused build errors
-   - Solution: Standardized to `[id]` for categories, `[productId]` for products
-   - Commit: `a02da33`
-
-2. **Email Confirmation 404 Error** (Fixed: Feb 21, 2026)
-   - Problem: Missing callback handler for email verification
-   - Solution: Created `/auth/callback` route handler
-   - Commit: `2214bdd`
-
-3. **Build Error - useSearchParams** (Fixed: Feb 21, 2026)
-   - Problem: `useSearchParams()` not wrapped in Suspense boundary
-   - Solution: Wrapped LoginForm in Suspense component
-   - Commit: `b48d0c6`
-
-4. **Vercel Auto-Deploy Not Working** (Fixed: Feb 21, 2026)
-   - Problem: Private repo not triggering deployments
-   - Solution: Made repository public
-   - Status: ✅ Auto-deployment now working
-
-### Storage & Sync Issues (Fixed: Feb 21, 2026)
-5. **UI Showing "Coming in Phase 2"** (Fixed: Commit `f0af9d5`)
-   - Problem: No UI for viewing generated angled shots
-   - Solution: Created AngledShotCard and AngledShotsList components
-
-6. **Storage Sync Inconsistency** (Fixed: Commit `9ed5440`)
-   - Problem: Deletions in one system (UI/Drive/Supabase) not synced across all
-   - Solution: Implemented 3-layer sync system with deletion queue and triggers
-
-7. **Images Stuck on "Loading..." - Bucket Not Found** (Fixed: Commit `6d9a3ca`)
-   - Problem: GET endpoint generating Supabase Storage URLs for Drive files
-   - Solution: Check storage_provider and use storage_url from database
-
-8. **Category Counts Showing Zero** (Fixed: Commit `dac72c4`)
-   - Problem: CategoryCard had hardcoded "0 products" and "0 assets"
-   - Solution: Added count fetching to GET /api/categories endpoint
-
-9. **Images Downloading Instead of Displaying** (Fixed: Commit `6c95277`)
-   - Problem: Google Drive URLs using export=download format
-   - Solution: Changed to thumbnail API format (`/thumbnail?id={ID}&sz=w2000`)
-   - Fixed 42 existing database records with script
-
-10. **Orphaned Metadata After Trash** (Fixed: Commit `0978f60`)
-    - Problem: Files in Google Drive trash still had Supabase metadata
-    - Solution: Created cleanup scripts and API endpoint
-    - Result: Successfully cleaned 28 orphaned records
-
-11. **Google Drive UUID Folders Instead of Human-Readable Names** (Fixed: Feb 21, 2026)
-    - Problem: Files stored in UUID-named folders (e.g., `00d3f3b1-9da5-44ac-b5b1-fcbd50039273`)
-    - Solution: Implemented slug-based folder structure
-    - Before: `product-images/gummy-bear-test/{UUID}/angled-shots/`
-    - After: `gummy-bear/vitamin-c-gummies/product-images/vitamin-c-gummies-angled-shots/`
-    - Result: All 7 angled shots reorganized, human-readable folder names
-    - Scripts: `fix-gdrive-folder-structure.ts`, `reorganize-gdrive-structure.ts`
-    - Commits: `dd5b12a`, `caad33d`
-
-12. **Frontend Images Not Displaying from Google Drive** (Fixed: Feb 21, 2026)
-    - Problem: Frontend components ignored `public_url` from API, generated wrong Supabase URLs
-    - Root Cause: `ProductImageGallery` and `ProductCard` bypassed API and generated own URLs
-    - Solution: Components now use `public_url` field from API response
-    - Fixed Components: `ProductImageGallery.tsx`, `ProductCard.tsx`
-    - Added: Error handlers with fallback placeholders
-    - Verified: All 8 files have correct Google Drive permissions (200 OK)
-    - Commit: `81d2b83`
-
-13. **Composites Gallery Showing "No composites yet"** (Fixed: Feb 21, 2026)
-    - Problem: UI gallery showed empty state despite 7 composites in database
-    - Root Cause: API tried to select non-existent `name` field from angled_shots table
-    - Database Reality: angled_shots only has `angle_name` and `angle_description` columns
-    - Solution: Updated API route and CompositeGallery to use `angle_name` instead
-    - Fixed Files: `src/app/api/categories/[id]/composites/route.ts`, `CompositeGallery.tsx`
-    - Result: All 7 composites now display correctly in UI
-    - Commit: `aa3513e`
-
-### Configuration Issues
-1. **Root Page Redirect** (Fixed: Feb 20, 2026)
-   - Moved redirect from component to `next.config.ts`
-   - Prevents static generation errors
-
-2. **Middleware Deprecation Warning**
-   - Status: ⚠️ Warning present but not critical
-   - Next.js recommends migration to "proxy" convention
-   - Action: Can address in future optimization phase
+```
+Safe Zones/Templates (1) ← THE BLUEPRINT
+        ↓
+   Composites (2) ← Respects product placement from template
+        ↓
+   Copy Docs (3) ← Fits character limits from template
+        ↓
+  Final Assets (4) ← Uses template to place everything
+```
 
 ---
 
-## 🧪 Testing Status
+## 🎯 Next Actions
 
-### Manual Testing (Completed: Feb 21, 2026)
-- ✅ Authentication flow - redirects working correctly
-- ✅ Login page - rendering with proper form elements
-- ✅ Signup page - working with email confirmation
-- ✅ Protected routes - middleware protecting dashboard
-- ✅ Category CRUD - all operations verified
-- ✅ Brand assets - upload and delete working
-- ✅ Product CRUD - all operations verified
-
-### Automated Testing
-- [ ] E2E tests for critical flows
-- [ ] API endpoint tests
-- [ ] Component tests
+1. **START:** Template/Safe Zone system implementation
+2. Review aspect ratios to support (1:1, 9:16, 16:9, 4:5, 21:9, etc.)
+3. Design template JSON schema
+4. Build visual template editor UI
+5. Create default templates for common aspect ratios
 
 ---
 
-## 🔧 Technical Stack
+## 💡 Notes
 
-### Frontend
-- **Framework:** Next.js 16.1.6 (App Router, Turbopack)
-- **Language:** TypeScript
-- **Styling:** Tailwind CSS
-- **Components:** shadcn/ui
-- **State:** React Hooks
-- **Notifications:** Sonner (toast)
-
-### Backend
-- **Database:** Supabase (PostgreSQL)
-- **Auth:** Supabase Auth
-- **Storage:** Google Drive (via Service Account)
-- **API:** Next.js API Routes
-- **Cron Jobs:** Vercel Cron (deletion queue processing)
-
-### AI Services
-- **Image Generation:** Google Gemini 3 Pro Image Preview (image-to-image)
-- **Copy Generation:** OpenAI GPT-4o (Planned - Phase 4)
-
-### Deployment
-- **Platform:** Vercel
-- **Domain:** ad-forge-opal.vercel.app
-- **CI/CD:** Automatic deployment from GitHub main branch
-
----
-
-## 📊 Database Schema
-
-### Tables
-1. **categories**
-   - id, user_id, name, slug, description, look_and_feel
-   - RLS: Users can only access their own categories
-
-2. **products**
-   - id, category_id, name, slug, description
-   - RLS: Users can only access products in their categories
-
-3. **brand_assets**
-   - id, user_id, file_name, file_path, file_size, mime_type
-   - RLS: Users can only access their own assets
-
-4. **product_images**
-   - id, product_id, file_name, file_path, file_size, is_primary
-   - RLS: Users can only access images for their products
-
-5. **angled_shots** (Phase 2 - COMPLETED, Updated Phase 3)
-   - id, product_id, product_image_id, category_id, user_id
-   - angle_name, angle_description, prompt_used
-   - storage_provider ('gdrive' or 'supabase'), storage_path, storage_url
-   - gdrive_file_id (Google Drive file ID for fast deletion)
-   - metadata (JSONB), created_at
-   - Migration 011: Added storage sync fields
-
-5b. **deletion_queue** (Phase 2 - Storage Sync)
-   - id, resource_type, resource_id, user_id
-   - storage_provider, storage_path, storage_url, gdrive_file_id
-   - status ('pending', 'completed', 'failed')
-   - retry_count, max_retries, error_message
-   - created_at, processed_at, metadata (JSONB)
-   - Triggers: Auto-queues deletions from angled_shots, product_images, backgrounds, composites
-
-6. **backgrounds** (Phase 3 - COMPLETED)
-   - id, category_id, user_id, name, slug, description
-   - prompt_used
-   - storage_provider ('gdrive'), storage_path, storage_url
-   - gdrive_file_id (Google Drive file ID for fast deletion)
-   - metadata (JSONB), created_at
-   - Migration 009: Full storage sync implementation
-
-7. **composites** (Phase 3 - SCHEMA READY, NOT USED)
-   - id, category_id, product_id, angled_shot_id, background_id, user_id
-   - storage_provider ('gdrive'), storage_path, storage_url
-   - gdrive_file_id (Google Drive file ID for fast deletion)
-   - metadata (JSONB), created_at
-   - UNIQUE(angled_shot_id, background_id) - prevents duplicates
-   - Migration 010: Full storage sync implementation
-
-8. **copy_docs** (Phase 4)
-   - id, product_id, copy_text, version, prompt_used
-
-9. **final_assets** (Phase 6)
-   - id, composite_id, copy_doc_id, layout_type, file_path
-
-### Storage Systems
-
-**Google Drive** (Primary - Phase 2 & 3):
-- All images stored in AdForge Shared Drive
-- **Human-Readable Folder Structure** (NOT UUIDs):
-  ```
-  AdForge Shared Drive/
-  └── {category-slug}/                              (e.g., gummy-bear)
-      └── {product-slug}/                           (e.g., vitamin-c-gummies)
-          └── product-images/                       (container)
-              ├── {image-filename}.jpg              (original uploads)
-              └── {image-name}-angled-shots/        (AI variations per image)
-                  ├── left_30deg_{timestamp}.jpg
-                  └── ...
-  ```
-- **Path Examples:**
-  - Original: `gummy-bear/vitamin-c-gummies/product-images/vitamin-c-gummies.jpg`
-  - Angled: `gummy-bear/vitamin-c-gummies/product-images/vitamin-c-gummies-angled-shots/left_30deg.jpg`
-  - Background: `gummy-bear/backgrounds/tropical-warm.jpg`
-- Thumbnail API URLs: `https://drive.google.com/thumbnail?id={FILE_ID}&sz=w2000`
-- Service account with domain-wide delegation
-- Automatic folder creation with proper permissions
-- All files have public "anyone with link" permissions
-
-**Supabase Storage** (Legacy - Removed):
-- ❌ 8 unused buckets removed (brand-assets, product-images, angled-shots, etc.)
-- Database now stores Google Drive URLs and file IDs
-- storage_provider field tracks which system stores each file
-
-**Database Fields for Storage:**
-- `storage_provider`: 'gdrive' or 'supabase'
-- `storage_path`: File path in storage system
-- `storage_url`: Public URL (Google Drive thumbnail API)
-- `gdrive_file_id`: Drive file ID for deletion/updates
-
----
-
-## 🚀 Next Steps
-
-### Immediate (Storage Sync for Existing Assets)
-1. **Apply storage sync to product_images**
-   - Add storage fields (provider, path, url, gdrive_file_id)
-   - Update DELETE endpoint to sync with Google Drive
-   - Create database trigger for deletion queue
-   - Update cleanup scripts
-2. **Apply storage sync to brand_assets**
-   - Add storage fields
-   - Update DELETE endpoint
-   - Create database trigger
-   - Update cleanup scripts
-
-### Phase 3-7 Requirements
-- **EVERY new asset type MUST:**
-  - Follow `docs/STORAGE_SYNC_REQUIREMENTS.md`
-  - Implement 3-layer sync (UI ↔ Supabase ↔ Google Drive)
-  - Support all 4 deletion scenarios
-  - Include cleanup script support
-
-### Short Term (Phase 2 - Next 1-2 weeks)
-1. Set up Google Gemini API integration
-2. Implement angled shot generation
-3. Create preview and selection interface
-4. Build angled shots gallery
-
-### Medium Term (Phases 3-4)
-1. Background generation system
-2. Composite creation pipeline
-3. GPT-4o copy generation
-4. Copy management interface
-
-### Long Term (Phases 5-7)
-1. Guidelines and safe zones
-2. Final asset assembly
-3. Multi-format export
-4. Bulk operations
-
----
-
-## 📝 Notes
-
-### General
-- Repository is now public for automatic Vercel deployments
-- Supabase redirect URLs configured for both local and production
-- All RLS policies tested and working
-- Product CRUD uses consistent naming: `[id]` for category, `[productId]` for product
-- Email confirmation flow fully functional
-
-### Storage & Sync (Feb 21, 2026)
-- **Migrated to Google Drive** - All new images stored in Drive
-- **Cleanup System** - Run `npx tsx scripts/cleanup-orphaned-local.ts --execute` weekly
-- **Deletion Queue** - Automatic cleanup via cron job every 5 minutes
-- **Storage Adapter Pattern** - Pluggable storage system for future flexibility
-- **28 Orphaned Records Cleaned** - First successful cleanup run removed trashed file metadata
-- **CRON_SECRET** - Set in Vercel env vars: `450b64484cf23ccc927f8a2354fb5b78ba120f9f48b1c448887283bc6ac08eb0`
-
-### Documentation
-- Complete storage sync documentation in `docs/STORAGE_SYNC.md`
-- Updated README with cleanup instructions
-- All deletion scenarios documented with test procedures
-
----
-
-## 🤝 Contributing
-
-This is a solo project developed with AI assistance (Claude).
-
-For questions or issues, check the commit history or deployment logs.
+- Template-first approach prevents costly regeneration later
+- All positioning stored as percentages (scale-independent)
+- Templates ensure brand compliance from the start
+- The @ reference system will be critical for cross-step asset reuse

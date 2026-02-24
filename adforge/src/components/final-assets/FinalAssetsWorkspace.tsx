@@ -60,6 +60,13 @@ interface CopyDoc {
   created_at: string
 }
 
+interface BrandAsset {
+  id: string
+  name: string
+  asset_type: string
+  storage_url: string
+}
+
 interface FinalAssetsWorkspaceProps {
   categoryId: string
   format?: string
@@ -70,6 +77,8 @@ export function FinalAssetsWorkspace({ categoryId, format = '1:1' }: FinalAssets
   const [templates, setTemplates] = useState<Template[]>([])
   const [composites, setComposites] = useState<Composite[]>([])
   const [copyDocs, setCopyDocs] = useState<CopyDoc[]>([])
+  const [logos, setLogos] = useState<BrandAsset[]>([])
+  const [selectedLogoId, setSelectedLogoId] = useState<string>('')
 
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
@@ -92,7 +101,8 @@ export function FinalAssetsWorkspace({ categoryId, format = '1:1' }: FinalAssets
         fetchFinalAssets(),
         fetchTemplates(),
         fetchComposites(),
-        fetchCopyDocs()
+        fetchCopyDocs(),
+        fetchLogo(),
       ])
     } catch (error: any) {
       console.error('Error fetching data:', error)
@@ -193,6 +203,20 @@ export function FinalAssetsWorkspace({ categoryId, format = '1:1' }: FinalAssets
     }
   }
 
+  const fetchLogo = async () => {
+    try {
+      const response = await fetch('/api/brand-assets')
+      const data = await response.json()
+      const logoList: BrandAsset[] = (data.assets || []).filter(
+        (a: BrandAsset) => a.asset_type === 'logo'
+      )
+      setLogos(logoList)
+      if (logoList.length > 0) setSelectedLogoId(logoList[0].id)
+    } catch {
+      // Logo is optional — silently ignore
+    }
+  }
+
   const handleGenerate = async () => {
     if (!assetName.trim()) {
       toast.error('Please enter a name for the ad')
@@ -209,6 +233,8 @@ export function FinalAssetsWorkspace({ categoryId, format = '1:1' }: FinalAssets
       return
     }
 
+    const logo = logos.find(l => l.id === selectedLogoId) || null
+
     setGenerating(true)
 
     try {
@@ -217,10 +243,11 @@ export function FinalAssetsWorkspace({ categoryId, format = '1:1' }: FinalAssets
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: assetName,
+          format,
           compositeId: selectedCompositeId,
           copyDocId: selectedCopyDocId,
-          // Template is optional - will use default if not selected
-          ...(selectedTemplateId && { templateId: selectedTemplateId })
+          ...(selectedTemplateId && { templateId: selectedTemplateId }),
+          ...(logo && { logoUrl: logo.storage_url }),
         })
       })
 
@@ -253,6 +280,7 @@ export function FinalAssetsWorkspace({ categoryId, format = '1:1' }: FinalAssets
   const selectedTemplate = templates.find(t => t.id === selectedTemplateId)
   const selectedComposite = composites.find(c => c.id === selectedCompositeId)
   const selectedCopyDoc = copyDocs.find(d => d.id === selectedCopyDocId)
+  const selectedLogo = logos.find(l => l.id === selectedLogoId) || null
 
   return (
     <div className="space-y-6">
@@ -361,6 +389,53 @@ export function FinalAssetsWorkspace({ categoryId, format = '1:1' }: FinalAssets
               )}
             </div>
 
+            {/* Logo selector */}
+            <div className="space-y-2">
+              <Label htmlFor="logo">Logo (Optional)</Label>
+              {logos.length > 0 ? (
+                <Select
+                  value={selectedLogoId}
+                  onValueChange={setSelectedLogoId}
+                  disabled={generating}
+                >
+                  <SelectTrigger id="logo">
+                    <SelectValue placeholder="Select a logo">
+                      {selectedLogo && (
+                        <div className="flex items-center gap-2">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={selectedLogo.storage_url}
+                            alt=""
+                            className="h-5 w-5 object-contain rounded"
+                          />
+                          <span>{selectedLogo.name}</span>
+                        </div>
+                      )}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {logos.map((logo) => (
+                      <SelectItem key={logo.id} value={logo.id}>
+                        <div className="flex items-center gap-2">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={logo.storage_url}
+                            alt=""
+                            className="h-6 w-6 object-contain rounded border bg-white"
+                          />
+                          <span>{logo.name}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-xs text-amber-600">
+                  ⚠ No logos found — upload one in Brand Assets to include it
+                </p>
+              )}
+            </div>
+
             <Button
               onClick={handleGenerate}
               disabled={generating || !assetName.trim() || !selectedCompositeId || !selectedCopyDocId}
@@ -454,7 +529,7 @@ export function FinalAssetsWorkspace({ categoryId, format = '1:1' }: FinalAssets
                           return (
                             <div
                               key={layer.id}
-                              className="absolute border-2 border-green-500 border-dashed flex items-center justify-center"
+                              className="absolute border-2 border-green-500 border-dashed flex items-center justify-center overflow-hidden"
                               style={{
                                 left: `${layer.x || 0}%`,
                                 top: `${layer.y || 0}%`,
@@ -462,9 +537,18 @@ export function FinalAssetsWorkspace({ categoryId, format = '1:1' }: FinalAssets
                                 height: `${layer.height || 15}%`,
                               }}
                             >
-                              <span className="text-xs font-bold text-green-600 bg-white/90 px-2 py-1 rounded">
-                                LOGO
-                              </span>
+                              {selectedLogo ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={selectedLogo.storage_url}
+                                  alt="Brand logo"
+                                  className="w-full h-full object-contain bg-white/80 p-1 rounded"
+                                />
+                              ) : (
+                                <span className="text-xs font-bold text-green-600 bg-white/90 px-2 py-1 rounded">
+                                  LOGO
+                                </span>
+                              )}
                             </div>
                           )
                         }

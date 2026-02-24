@@ -101,6 +101,7 @@ export async function POST(
       originalText,
       generatedText,
       copyType,
+      tone,
       language = 'en',
       promptUsed,
     } = body
@@ -159,6 +160,7 @@ export async function POST(
         original_text: originalText || '',
         generated_text: generatedText,
         copy_type: copyType,
+        tone: tone || null,
         language,
         prompt_used: promptUsed || null,
         storage_provider: 'gdrive',
