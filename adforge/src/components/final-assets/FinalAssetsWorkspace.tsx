@@ -133,9 +133,8 @@ export function FinalAssetsWorkspace({ categoryId, format = '1:1' }: FinalAssets
 
   const fetchTemplates = async () => {
     try {
-      const url = format
-        ? `/api/categories/${categoryId}/templates?format=${format}`
-        : `/api/categories/${categoryId}/templates`
+      // Fetch all templates — format-matching ones will be sorted first
+      const url = `/api/categories/${categoryId}/templates`
       const response = await fetch(url)
       const data = await response.json()
 
@@ -143,12 +142,17 @@ export function FinalAssetsWorkspace({ categoryId, format = '1:1' }: FinalAssets
         throw new Error(data.error)
       }
 
-      const templateList = data.templates || []
-      setTemplates(templateList)
+      // Sort so templates matching the current format appear first
+      const allTemplates: Template[] = data.templates || []
+      const sorted = [
+        ...allTemplates.filter((t) => t.format === format),
+        ...allTemplates.filter((t) => t.format !== format),
+      ]
+      setTemplates(sorted)
 
-      // Auto-select first template if available
-      if (templateList.length > 0 && !selectedTemplateId) {
-        setSelectedTemplateId(templateList[0].id)
+      // Auto-select first format-matching template if available
+      if (sorted.length > 0 && !selectedTemplateId) {
+        setSelectedTemplateId(sorted[0].id)
       }
     } catch (error: any) {
       console.error('Error fetching templates:', error)
