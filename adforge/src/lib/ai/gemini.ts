@@ -1,6 +1,30 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { ANGLE_VARIATIONS } from './angle-variations'
 
+/**
+ * Retries an async function up to maxRetries times with linear backoff.
+ * Throws the last error if all attempts are exhausted.
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 2,
+  delayMs: number = 1000
+): Promise<T> {
+  let lastError: Error = new Error('Unknown error')
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+      if (attempt < maxRetries) {
+        console.warn(`  ⚠️  Attempt ${attempt + 1} failed (${lastError.message}), retrying in ${delayMs * (attempt + 1)}ms...`)
+        await new Promise(resolve => setTimeout(resolve, delayMs * (attempt + 1)))
+      }
+    }
+  }
+  throw lastError
+}
+
 // Lazy initialization of Gemini AI client
 let genAI: GoogleGenerativeAI | null = null
 
@@ -118,8 +142,7 @@ Think of this as moving a camera around a stationary product on a turntable. The
 
 Return a high-quality professional product photograph from the new angle in ${aspectRatio} aspect ratio.`
 
-      try {
-        const requestBody = {
+      const requestBody = {
           contents: [{
             parts: [
               {
@@ -145,50 +168,38 @@ Return a high-quality professional product photograph from the new angle in ${as
           }
         }
 
-        const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody)
+        const { generatedBase64, generatedMimeType } = await withRetry(async () => {
+          const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
+          })
+
+          if (!response.ok) {
+            const errorText = await response.text()
+            throw new Error(`Gemini API error: ${response.status} - ${errorText}`)
+          }
+
+          const data = await response.json()
+
+          if (!data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data) {
+            throw new Error(`No image returned for angle: ${angle.name}`)
+          }
+
+          return {
+            generatedBase64: data.candidates[0].content.parts[0].inlineData.data as string,
+            generatedMimeType: (data.candidates[0].content.parts[0].inlineData.mimeType || 'image/jpeg') as string,
+          }
         })
 
-        if (!response.ok) {
-          const errorText = await response.text()
-          throw new Error(`Gemini API error: ${response.status} - ${errorText}`)
-        }
-
-        const data = await response.json()
-
-        if (data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data) {
-          const generatedBase64 = data.candidates[0].content.parts[0].inlineData.data
-          const generatedMimeType = data.candidates[0].content.parts[0].inlineData.mimeType || 'image/jpeg'
-          console.log(`  ✅ ${angle.name} done`)
-          return {
-            angleName: angle.name,
-            angleDescription: angle.description,
-            promptUsed: prompt,
-            imageData: `data:${generatedMimeType};base64,${generatedBase64}`,
-            mimeType: generatedMimeType,
-          }
-        } else {
-          console.warn(`  ⚠️  No image for ${angle.name}, using original as fallback`)
-          return {
-            angleName: angle.name,
-            angleDescription: angle.description,
-            promptUsed: prompt,
-            imageData: productImageData,
-            mimeType: productImageMimeType,
-          }
-        }
-      } catch (error) {
-        console.error(`  ❌ Error generating ${angle.name}:`, error)
+        console.log(`  ✅ ${angle.name} done`)
         return {
           angleName: angle.name,
           angleDescription: angle.description,
           promptUsed: prompt,
-          imageData: productImageData,
-          mimeType: productImageMimeType,
+          imageData: `data:${generatedMimeType};base64,${generatedBase64}`,
+          mimeType: generatedMimeType,
         }
-      }
     }))
       results.push(...batchResults)
     }
@@ -256,8 +267,7 @@ ${styleReferenceImages && styleReferenceImages.length > 0 ? 'Use the provided re
 
 Return a professional product photography background.`
 
-      try {
-        const contentParts: any[] = []
+      const contentParts: any[] = []
 
         // Add style reference images if provided
         if (styleReferenceImages && styleReferenceImages.length > 0) {
@@ -292,40 +302,37 @@ Return a professional product photography background.`
           }
         }
 
-        // Call Gemini API directly
-        const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(requestBody)
+        // Call Gemini API directly with retry
+        const { generatedBase64: bgBase64, generatedMimeType: bgMimeType } = await withRetry(async () => {
+          const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
+          })
+
+          if (!response.ok) {
+            const errorText = await response.text()
+            throw new Error(`Gemini API error: ${response.status} - ${errorText}`)
+          }
+
+          const data = await response.json()
+
+          if (!data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data) {
+            throw new Error(`No image returned for background ${i + 1}`)
+          }
+
+          return {
+            generatedBase64: data.candidates[0].content.parts[0].inlineData.data as string,
+            generatedMimeType: (data.candidates[0].content.parts[0].inlineData.mimeType || 'image/jpeg') as string,
+          }
         })
 
-        if (!response.ok) {
-          const errorText = await response.text()
-          throw new Error(`Gemini API error: ${response.status} - ${errorText}`)
+        console.log(`  ✅ Background ${i + 1} done`)
+        return {
+          promptUsed: prompt,
+          imageData: `data:${bgMimeType};base64,${bgBase64}`,
+          mimeType: bgMimeType,
         }
-
-        const data = await response.json()
-
-        // Extract base64 image from response
-        if (data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data) {
-          const generatedBase64 = data.candidates[0].content.parts[0].inlineData.data
-          const generatedMimeType = data.candidates[0].content.parts[0].inlineData.mimeType || 'image/jpeg'
-          console.log(`  ✅ Background ${i + 1} done`)
-          return {
-            promptUsed: prompt,
-            imageData: `data:${generatedMimeType};base64,${generatedBase64}`,
-            mimeType: generatedMimeType,
-          }
-        } else {
-          console.warn(`  ⚠️  No image in response for background ${i + 1}`)
-          throw new Error('No image generated in response')
-        }
-      } catch (error) {
-        console.error(`  ❌ Error generating ${aspectRatio} background ${i + 1}:`, error)
-        throw error
-      }
     }))
       results.push(...batchResults)
     }

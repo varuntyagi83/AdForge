@@ -4,6 +4,29 @@ import { formatBrandVoiceForPrompt } from './brand-voice'
 
 let openaiClient: OpenAI | null = null
 
+/**
+ * Retries an async function up to maxRetries times with linear backoff.
+ * Throws the last error if all attempts are exhausted.
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 2,
+  delayMs: number = 1000
+): Promise<T> {
+  let lastError: Error = new Error('Unknown error')
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, delayMs * (attempt + 1)))
+      }
+    }
+  }
+  throw lastError
+}
+
 function getOpenAI(): OpenAI {
   if (!openaiClient) {
     const apiKey = process.env.OPENAI_API_KEY
@@ -46,15 +69,17 @@ export async function generateCopyVariations(
 
   const results: CopyVariation[] = []
   for (let i = 0; i < count; i++) {
-    const response = await getOpenAI().chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.8,
-      max_tokens: 500,
-    })
+    const response = await withRetry(() =>
+      getOpenAI().chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.8,
+        max_tokens: 500,
+      })
+    )
 
     results.push({
       promptUsed: prompt,
@@ -93,15 +118,17 @@ export async function generateCopyKit(
     combinations.map(async ({ copyType, tone }) => {
       const prompt = buildCopyPrompt(brief, copyType, tone, targetAudience)
 
-      const response = await getOpenAI().chat.completions.create({
-        model: 'gpt-4o',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.8,
-        max_tokens: 500,
-      })
+      const response = await withRetry(() =>
+        getOpenAI().chat.completions.create({
+          model: 'gpt-4o',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.8,
+          max_tokens: 500,
+        })
+      )
 
       return {
         copyType,

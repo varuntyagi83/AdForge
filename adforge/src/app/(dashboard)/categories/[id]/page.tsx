@@ -17,6 +17,7 @@ import { FinalAssetsWorkspace } from '@/components/final-assets/FinalAssetsWorks
 import { FormatSelector } from '@/components/format-selector'
 import { GuidelineUploadForm } from '@/components/templates/GuidelineUploadForm'
 import { GuidelinesList } from '@/components/templates/GuidelinesList'
+import { EditCategoryDialog } from '@/components/categories/EditCategoryDialog'
 import type { BrandVoiceProfile } from '@/lib/ai/brand-voice'
 
 interface CategoryDetailPageProps {
@@ -49,6 +50,7 @@ export default function CategoryDetailPage({ params }: CategoryDetailPageProps) 
   const [category, setCategory] = useState<Category | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedFormat, setSelectedFormat] = useState<string>('1:1')
+  const [editOpen, setEditOpen] = useState(false)
 
   const activeTab = searchParams.get('tab') || 'assets'
 
@@ -103,7 +105,7 @@ export default function CategoryDetailPage({ params }: CategoryDetailPageProps) 
               <code className="bg-muted px-1 py-0.5 rounded">@{category.slug}</code>
             </p>
           </div>
-          <Button variant="outline" size="icon">
+          <Button variant="outline" size="icon" onClick={() => setEditOpen(true)}>
             <Edit className="h-4 w-4" />
           </Button>
         </div>
@@ -230,8 +232,14 @@ export default function CategoryDetailPage({ params }: CategoryDetailPageProps) 
           <FinalAssetsWorkspace categoryId={category.id} format={selectedFormat} />
         </TabsContent>
 
-
       </Tabs>
+
+      <EditCategoryDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        category={category}
+        onUpdated={(updated) => setCategory((prev) => prev ? { ...prev, ...updated } : prev)}
+      />
     </div>
   )
 }
