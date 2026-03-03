@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -14,18 +14,10 @@ interface FinalAsset {
   id: string
   name: string
   storage_url: string
-  gdrive_file_id: string | null
   format: string
   width: number
   height: number
   created_at: string
-}
-
-const FORMAT_ASPECT_RATIO: Record<string, string> = {
-  '1:1':  '1 / 1',
-  '16:9': '16 / 9',
-  '9:16': '9 / 16',
-  '4:5':  '4 / 5',
 }
 
 interface Template {
@@ -90,6 +82,7 @@ export function FinalAssetsWorkspace({ categoryId, format = '1:1' }: FinalAssets
 
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
+  const generatingRef = useRef(false)
   const [assetName, setAssetName] = useState('')
 
   // Selected IDs
@@ -230,6 +223,9 @@ export function FinalAssetsWorkspace({ categoryId, format = '1:1' }: FinalAssets
   }
 
   const handleGenerate = async () => {
+    if (generatingRef.current) return
+    generatingRef.current = true
+
     if (!assetName.trim()) {
       toast.error('Please enter a name for the ad')
       return
@@ -277,6 +273,7 @@ export function FinalAssetsWorkspace({ categoryId, format = '1:1' }: FinalAssets
       toast.error(error.message)
     } finally {
       setGenerating(false)
+      generatingRef.current = false
     }
   }
 
@@ -484,10 +481,7 @@ export function FinalAssetsWorkspace({ categoryId, format = '1:1' }: FinalAssets
                 {selectedComposite ? (
                   <div className="border rounded-lg p-3 space-y-2">
                     <p className="text-xs font-medium">Final Ad Preview</p>
-                    <div
-                      className="relative rounded-lg overflow-hidden bg-gray-100"
-                      style={{ aspectRatio: FORMAT_ASPECT_RATIO[format] ?? '1 / 1' }}
-                    >
+                    <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
                       {/* Background Composite */}
                       <Image
                         src={selectedComposite.storage_url}
@@ -645,10 +639,7 @@ export function FinalAssetsWorkspace({ categoryId, format = '1:1' }: FinalAssets
             {finalAssets.map((asset) => (
               <Card key={asset.id}>
                 <CardContent className="p-4">
-                  <div
-                    className="relative rounded-lg overflow-hidden bg-gray-100 mb-3"
-                    style={{ aspectRatio: FORMAT_ASPECT_RATIO[asset.format] ?? '1 / 1' }}
-                  >
+                  <div className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 mb-3">
                     <Image
                       src={asset.storage_url}
                       alt={asset.name}
@@ -668,12 +659,7 @@ export function FinalAssetsWorkspace({ categoryId, format = '1:1' }: FinalAssets
                       variant="outline"
                       size="sm"
                       className="w-full"
-                      onClick={() => {
-                        const url = asset.gdrive_file_id
-                          ? `https://drive.google.com/uc?export=download&id=${asset.gdrive_file_id}`
-                          : asset.storage_url
-                        window.open(url, '_blank')
-                      }}
+                      onClick={() => window.open(asset.storage_url, '_blank')}
                     >
                       <Download className="h-4 w-4 mr-2" />
                       Download

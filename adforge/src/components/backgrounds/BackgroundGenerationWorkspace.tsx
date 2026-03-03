@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { BackgroundGenerationForm } from './BackgroundGenerationForm'
+import { BrandGuidelinesManager } from '@/components/brand-guidelines/BrandGuidelinesManager'
 import { BackgroundPreviewGrid } from './BackgroundPreviewGrid'
 import { BackgroundGallery } from './BackgroundGallery'
 
@@ -18,6 +19,7 @@ interface GeneratedBackground {
   promptUsed: string
   imageData: string
   mimeType: string
+  format: string
 }
 
 interface BackgroundGenerationWorkspaceProps {
@@ -60,6 +62,9 @@ export function BackgroundGenerationWorkspace({
         </p>
       </div>
 
+      {/* Brand Guidelines Library */}
+      <BrandGuidelinesManager />
+
       {/* Generation Form */}
       <BackgroundGenerationForm
         category={category}
@@ -80,7 +85,7 @@ export function BackgroundGenerationWorkspace({
         />
       )}
 
-      {/* Saved Backgrounds */}
+      {/* Saved Backgrounds — show all formats */}
       <Tabs defaultValue="gallery" className="w-full">
         <TabsList>
           <TabsTrigger value="gallery">Saved Backgrounds</TabsTrigger>
@@ -88,7 +93,6 @@ export function BackgroundGenerationWorkspace({
         <TabsContent value="gallery" className="mt-6">
           <BackgroundGallery
             categoryId={category.id}
-            format={format}
             refreshTrigger={refreshKey}
           />
         </TabsContent>

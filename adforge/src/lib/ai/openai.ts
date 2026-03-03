@@ -4,36 +4,13 @@ import { formatBrandVoiceForPrompt } from './brand-voice'
 
 let openaiClient: OpenAI | null = null
 
-/**
- * Retries an async function up to maxRetries times with linear backoff.
- * Throws the last error if all attempts are exhausted.
- */
-async function withRetry<T>(
-  fn: () => Promise<T>,
-  maxRetries: number = 2,
-  delayMs: number = 1000
-): Promise<T> {
-  let lastError: Error = new Error('Unknown error')
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await fn()
-    } catch (error) {
-      lastError = error instanceof Error ? error : new Error(String(error))
-      if (attempt < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, delayMs * (attempt + 1)))
-      }
-    }
-  }
-  throw lastError
-}
-
 function getOpenAI(): OpenAI {
   if (!openaiClient) {
     const apiKey = process.env.OPENAI_API_KEY
     if (!apiKey) {
       throw new Error('OPENAI_API_KEY environment variable is missing')
     }
-    openaiClient = new OpenAI({ apiKey })
+    openaiClient = new OpenAI({ apiKey, timeout: 60000 })
   }
   return openaiClient
 }
@@ -67,10 +44,10 @@ export async function generateCopyVariations(
   const systemPrompt = buildSystemPrompt(lookAndFeel, brandGuidelines, brandVoice)
   const prompt = buildCopyPrompt(brief, copyType, tone, targetAudience)
 
-  const results: CopyVariation[] = []
-  for (let i = 0; i < count; i++) {
-    const response = await withRetry(() =>
-      getOpenAI().chat.completions.create({
+  try {
+    const results: CopyVariation[] = []
+    for (let i = 0; i < count; i++) {
+      const response = await getOpenAI().chat.completions.create({
         model: 'gpt-4o',
         messages: [
           { role: 'system', content: systemPrompt },
@@ -79,15 +56,18 @@ export async function generateCopyVariations(
         temperature: 0.8,
         max_tokens: 500,
       })
-    )
 
-    results.push({
-      promptUsed: prompt,
-      generatedText: response.choices[0].message.content || '',
-    })
+      results.push({
+        promptUsed: prompt,
+        generatedText: response.choices[0]?.message?.content || '',
+      })
+    }
+
+    return results
+  } catch (error) {
+    console.error('Error generating copy variations:', error)
+    throw new Error(`Failed to generate copy: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
-
-  return results
 }
 
 /**
@@ -113,31 +93,46 @@ export async function generateCopyKit(
     }
   }
 
-  // Generate all in parallel
-  const results = await Promise.all(
+  // Generate all in parallel — use allSettled so partial failures return successful results
+  const settled = await Promise.allSettled(
     combinations.map(async ({ copyType, tone }) => {
       const prompt = buildCopyPrompt(brief, copyType, tone, targetAudience)
 
-      const response = await withRetry(() =>
-        getOpenAI().chat.completions.create({
-          model: 'gpt-4o',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: prompt },
-          ],
-          temperature: 0.8,
-          max_tokens: 500,
-        })
-      )
+      const response = await getOpenAI().chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.8,
+        max_tokens: 500,
+      })
 
       return {
         copyType,
         tone,
         promptUsed: prompt,
-        generatedText: response.choices[0].message.content || '',
+        generatedText: response.choices[0]?.message?.content || '',
       } as CopyKitItem
     })
   )
+
+  const results = settled
+    .filter((r): r is PromiseFulfilledResult<CopyKitItem> => r.status === 'fulfilled')
+    .map((r) => r.value)
+
+  const failures = settled.filter((r) => r.status === 'rejected')
+  if (failures.length > 0) {
+    console.warn(`Copy kit: ${failures.length}/${settled.length} combinations failed`)
+  }
+
+  if (results.length === 0) {
+    const firstFailure = failures[0] as PromiseRejectedResult
+    const reason = firstFailure?.reason instanceof Error
+      ? firstFailure.reason.message
+      : String(firstFailure?.reason ?? 'Unknown error')
+    throw new Error(`All copy generation requests failed: ${reason}`)
+  }
 
   return results
 }

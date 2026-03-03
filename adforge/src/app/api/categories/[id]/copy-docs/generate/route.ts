@@ -36,6 +36,18 @@ export async function POST(
       return NextResponse.json({ error: 'brief is required' }, { status: 400 })
     }
 
+    // ── Resolve brand voice (library voice overrides category voice) ─────
+    let brandVoice = category.brand_voice || undefined
+    if (body.brandVoiceId) {
+      const { data: voice } = await supabase
+        .from('brand_voices')
+        .select('profile')
+        .eq('id', body.brandVoiceId)
+        .eq('user_id', user.id)
+        .single()
+      if (voice) brandVoice = voice.profile
+    }
+
     // ── KIT MODE: multiple types × multiple tones ──────────────────────────
     if (mode === 'kit') {
       const { copyTypes, tones, targetAudience } = body
@@ -53,8 +65,8 @@ export async function POST(
       }
 
       const totalCombinations = copyTypes.length * tones.length
-      if (totalCombinations > 25) {
-        return NextResponse.json({ error: 'Max 25 combinations at once (e.g. 5 types × 5 tones)' }, { status: 400 })
+      if (totalCombinations > 50) {
+        return NextResponse.json({ error: 'Max 50 combinations at once' }, { status: 400 })
       }
 
       console.log(`Generating copy kit: ${copyTypes.length} types × ${tones.length} tones = ${totalCombinations} for ${category.slug}`)
@@ -66,7 +78,7 @@ export async function POST(
         category.look_and_feel || '',
         targetAudience,
         category.brand_guidelines || undefined,
-        category.brand_voice || undefined
+        brandVoice
       )
 
       return NextResponse.json({
@@ -105,7 +117,7 @@ export async function POST(
       tone,
       targetAudience,
       category.brand_guidelines || undefined,
-      category.brand_voice || undefined
+      brandVoice
     )
 
     return NextResponse.json({

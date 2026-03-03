@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -26,9 +26,10 @@ interface Category {
 
 interface AngledShot {
   id: string
-  name: string
+  display_name: string
   angle_name: string
   storage_url: string
+  product?: { id: string; name: string; slug: string }
 }
 
 interface Background {
@@ -52,6 +53,7 @@ export function CompositeGenerationForm({
   isGenerating,
   setIsGenerating,
 }: CompositeGenerationFormProps) {
+  const generatingRef = useRef(false)
   const [mode, setMode] = useState<'all_combinations' | 'selected'>(
     'selected'
   )
@@ -99,6 +101,9 @@ export function CompositeGenerationForm({
   }, [category.id, format])
 
   const handleGenerate = async () => {
+    if (generatingRef.current) return
+    generatingRef.current = true
+
     // Validation
     if (mode === 'selected' && (selectedShots.length === 0 || selectedBackgrounds.length === 0)) {
       toast.error('Please select at least one angled shot and one background')
@@ -160,11 +165,19 @@ export function CompositeGenerationForm({
         throw new Error(data.error || 'Failed to generate composites')
       }
 
+      if (data.results.length === 0) {
+        const reason = data.errors?.[0] || data.message || 'Unknown error'
+        toast.error(`No composites generated: ${reason}`)
+        return
+      }
+
       toast.success(`Generated ${data.results.length} composites!`)
       onCompositesGenerated(data.results)
     } catch (error: any) {
       console.error('Error generating composites:', error)
       toast.error(error.message || 'Failed to generate composites')
+    } finally {
+      generatingRef.current = false
       setIsGenerating(false)
     }
   }
@@ -265,11 +278,22 @@ export function CompositeGenerationForm({
                             htmlFor={`shot-${shot.id}`}
                             className="text-sm cursor-pointer flex-1"
                           >
-                            <div className="font-medium">{shot.name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {shot.angle_name}
+                            <div className="font-medium">
+                              {shot.display_name || shot.angle_name}
                             </div>
+                            {shot.product && (
+                              <div className="text-xs text-muted-foreground">
+                                {shot.product.name} &middot; {shot.angle_name}
+                              </div>
+                            )}
                           </label>
+                          {shot.storage_url && (
+                            <img
+                              src={shot.storage_url}
+                              alt={shot.display_name || shot.angle_name}
+                              className="w-10 h-10 rounded object-cover flex-shrink-0"
+                            />
+                          )}
                         </div>
                       ))
                     )}
@@ -314,6 +338,13 @@ export function CompositeGenerationForm({
                           >
                             {bg.name}
                           </label>
+                          {bg.storage_url && (
+                            <img
+                              src={bg.storage_url}
+                              alt={bg.name}
+                              className="w-10 h-10 rounded object-cover flex-shrink-0"
+                            />
+                          )}
                         </div>
                       ))
                     )}
